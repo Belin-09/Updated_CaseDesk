@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseDesk — Case Detail</title>
+  <link rel="stylesheet" href="assets/style.css?v=1.5">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-left">
+      <div class="navbar-logo">CaseDesk</div>
+      <div class="navbar-links">
+        <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="review.html">Review Queue</a>
+        <a href="analytics.html">Analytics</a>
+      </div>
+    </div>
+    <div class="navbar-right">
+      <span class="navbar-user">Logged in as <span id="navUsername"></span></span>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
+
+    <div class="page-header">
+      <div>
+        <div class="page-title" id="caseTitle">Loading...</div>
+        <div class="page-subtitle" id="caseSubtitle"></div>
+      </div>
+    </div>
+
+    <div class="detail-layout">
+      <!-- Left column -->
+      <div>
+        <div class="detail-card">
+          <h3>Case Fields</h3>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Officer</label>
+              <input type="text" id="f_officer">
+            </div>
+            <div class="field-group">
+              <label>Date</label>
+              <input type="text" id="f_date">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Location</label>
+              <input type="text" id="f_location">
+            </div>
+            <div class="field-group">
+              <label>Incident Type</label>
+              <input type="text" id="f_incident_type">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Complainant</label>
+              <input type="text" id="f_complainant">
+            </div>
+            <div class="field-group">
+              <label>Suspect</label>
+              <input type="text" id="f_suspect">
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group" style="grid-column: span 2;">
+              <label>Evidence</label>
+              <textarea id="f_evidence"></textarea>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group" style="grid-column: span 2;">
+              <label>Notes</label>
+              <textarea id="f_notes"></textarea>
+            </div>
+          </div>
+          <div class="field-row">
+            <div class="field-group">
+              <label>Status</label>
+              <select id="f_status">
+                <option value="open">Open</option>
+                <option value="pending">Pending</option>
+                <option value="closed">Closed</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Document Preview</h3>
+          <div id="documentPreviewContainer" style="margin-top: 10px;">Loading preview...</div>
+          <div class="raw-text-box" id="rawTextBox" style="display: none; margin-top: 10px;">—</div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Source Files</h3>
+          <div id="fileList"></div>
+        </div>
+
+        <div class="save-bar">
+          <span class="save-status" id="saveStatus"></span>
+          <button class="btn-primary" id="saveBtn">Save Changes</button>
+        </div>
+      </div>
+
+      <!-- Right sidebar -->
+      <div>
+        <div class="detail-card">
+          <h3>Metadata</h3>
+          <div class="meta-row"><span>Case ID</span><span id="m_id"></span></div>
+          <div class="meta-row"><span>Uploaded By</span><span id="m_uploaded_by"></span></div>
+          <div class="meta-row"><span>Created</span><span id="m_created_at"></span></div>
+          <div class="meta-row"><span>Last Updated</span><span id="m_updated_at"></span></div>
+          <div class="meta-row"><span>Error Flag</span><span id="m_error_flag"></span></div>
+          <div class="meta-row"><span>Error Reason</span><span id="m_error_reason"></span></div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Actions</h3>
+          <div class="sidebar-actions">
+            <button class="btn-primary" id="exportBtn">📄 Export PDF</button>
+            <button class="btn-danger" id="deleteBtn">Delete Case</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/case-detail.js?v=1.5"></script>
+</body>
+</html>

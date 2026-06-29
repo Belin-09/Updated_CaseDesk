@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseDesk — Dashboard</title>
+  <link rel="stylesheet" href="assets/style.css?v=1.5">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-left">
+      <div class="navbar-logo">CaseDesk</div>
+      <div class="navbar-links">
+        <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="review.html">Review Queue</a>
+        <a href="analytics.html">Analytics</a>
+        <a href="timeline.html">Timeline</a>
+      </div>
+    </div>
+    <div class="navbar-right">
+      <span class="navbar-user">Logged in as <span id="navUsername"></span></span>
+      <button class="nav-btn" id="userMgmtBtn" style="display: none;">👥 User Management</button>
+      <button class="nav-btn" id="changePasswordBtn">🔑 Change Password</button>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Cases</div>
+        <div class="page-subtitle" id="totalCount">Loading...</div>
+      </div>
+      <div style="display:flex; gap:10px;">
+        <button class="btn-secondary" id="scanFolderBtn">📁 Scan Folder</button>
+        <button class="btn-primary" id="uploadBtn">+ Upload Document</button>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <input type="text" id="searchInput" placeholder="Search officer, location, case name...">
+      <select id="statusFilter">
+        <option value="">All Status</option>
+        <option value="open">Open</option>
+        <option value="closed">Closed</option>
+        <option value="pending">Pending</option>
+      </select>
+      <select id="sortBy">
+        <option value="created_at">Date Created</option>
+        <option value="date">Incident Date</option>
+        <option value="officer">Officer</option>
+        <option value="status">Status</option>
+      </select>
+      <select id="sortOrder">
+        <option value="desc">Descending</option>
+        <option value="asc">Ascending</option>
+      </select>
+    </div>
+
+    <div id="caseGrid" class="case-grid"></div>
+
+    <div id="emptyState" class="empty-state" style="display:none;">
+      <div class="empty-state-icon">📂</div>
+      <div>No cases found</div>
+    </div>
+
+    <div class="pagination" id="pagination"></div>
+  </div>
+
+  <!-- Upload Modal -->
+  <div class="modal-overlay" id="uploadModal">
+    <div class="modal-box">
+      <h2>Upload Document</h2>
+      <input type="file" id="fileInput" accept=".pdf,.docx,.jpg,.jpeg,.png">
+      <div class="upload-status" id="uploadStatus"></div>
+      <div class="modal-actions">
+        <button class="btn-secondary" id="cancelUploadBtn">Cancel</button>
+        <button class="btn-primary" id="confirmUploadBtn">Upload</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Scan Folder Modal -->
+  <div class="modal-overlay" id="scanModal">
+    <div class="modal-box" style="width: 480px;">
+      <h2>Scan Folder</h2>
+      <div class="field-group" style="margin-bottom: 18px;">
+        <label>Root Folder Path</label>
+        <input type="text" id="scanPathInput" placeholder="E:\cases" style="width:100%; background:#0f1419; border:1px solid #2a3441; color:#e8eaed; padding:10px 12px; border-radius:6px; font-size:13px;">
+      </div>
+
+      <div id="scanResults" class="scan-results" style="display:none;">
+        <div class="scan-summary">
+          <div class="scan-stat processed">
+            <div class="num" id="scanProcessed">0</div>
+            <div class="label">Processed</div>
+          </div>
+          <div class="scan-stat skipped">
+            <div class="num" id="scanSkipped">0</div>
+            <div class="label">Skipped</div>
+          </div>
+          <div class="scan-stat reprocessed">
+            <div class="num" id="scanReprocessed">0</div>
+            <div class="label">Reprocessed</div>
+          </div>
+          <div class="scan-stat failed">
+            <div class="num" id="scanFailed">0</div>
+            <div class="label">Failed</div>
+          </div>
+        </div>
+        <div id="scanItemList"></div>
+      </div>
+
+      <div class="upload-status" id="scanStatus"></div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="cancelScanBtn">Close</button>
+        <button class="btn-primary" id="confirmScanBtn">Scan</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Change Password Modal -->
+  <div class="modal-overlay" id="changePasswordModal">
+    <div class="modal-box">
+      <h2>Change Password</h2>
+      <div class="field-group" style="margin-top: 15px; margin-bottom: 12px; text-align: left;">
+        <label style="display:block; margin-bottom:6px; font-size:12px; color:#8a93a3;">Current Password</label>
+        <input type="password" id="currentPasswordInput" style="width:100%; background:#0f1419; border:1px solid #2a3441; color:#e8eaed; padding:10px 12px; border-radius:6px;">
+      </div>
+      <div class="field-group" style="margin-bottom: 18px; text-align: left;">
+        <label style="display:block; margin-bottom:6px; font-size:12px; color:#8a93a3;">New Password</label>
+        <input type="password" id="newPasswordInput" style="width:100%; background:#0f1419; border:1px solid #2a3441; color:#e8eaed; padding:10px 12px; border-radius:6px;">
+      </div>
+      <div class="upload-status" id="changePasswordStatus"></div>
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button class="btn-secondary" id="cancelChangePasswordBtn">Cancel</button>
+        <button class="btn-primary" id="confirmChangePasswordBtn">Change Password</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- User Management Modal -->
+  <div class="modal-overlay" id="userMgmtModal">
+    <div class="modal-box" style="width: 600px; max-width: 90%; max-height: 85vh; display: flex; flex-direction: column;">
+      <h2 style="margin-bottom: 15px;">User Management</h2>
+      
+      <!-- Create User Section -->
+      <div style="border: 1px solid #2a3441; padding: 15px; border-radius: 8px; margin-bottom: 20px; text-align: left;">
+        <h3 style="font-size:14px; margin-bottom:10px; color:#4f9cff;">Create New User</h3>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <input type="text" id="newUsername" placeholder="Username" style="flex: 1; min-width: 120px; background:#0f1419; border:1px solid #2a3441; color:#e8eaed; padding:8px 10px; border-radius:6px; font-size:13px;">
+          <input type="password" id="newUserPassword" placeholder="Password" style="flex: 1; min-width: 120px; background:#0f1419; border:1px solid #2a3441; color:#e8eaed; padding:8px 10px; border-radius:6px; font-size:13px;">
+          <select id="newUserRole" style="background:#0f1419; border:1px solid #2a3441; color:#e8eaed; padding:8px 10px; border-radius:6px; font-size:13px;">
+            <option value="officer">Officer</option>
+            <option value="viewer">Viewer</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button class="btn-primary" id="createUserBtn" style="padding: 8px 15px; font-size: 13px;">Add User</button>
+        </div>
+        <div class="upload-status" id="createUserStatus" style="margin-top: 10px; font-size: 12px;"></div>
+      </div>
+      
+      <!-- Users List -->
+      <div style="flex: 1; overflow-y: auto; text-align: left;">
+        <h3 style="font-size:14px; margin-bottom:10px; color:#8a93a3;">Existing Users</h3>
+        <table style="width: 100%; border-collapse: collapse;">
+          <thead>
+            <tr style="border-bottom: 1px solid #2a3441; color: #8a93a3; font-size: 12px; text-align: left;">
+              <th style="padding: 8px 5px;">Username</th>
+              <th style="padding: 8px 5px;">Role</th>
+              <th style="padding: 8px 5px;">Created At</th>
+            </tr>
+          </thead>
+          <tbody id="userListBody">
+            <!-- Dynamically populated -->
+          </tbody>
+        </table>
+      </div>
+      
+      <div class="modal-actions" style="margin-top: 20px;">
+        <button class="btn-secondary" id="closeUserMgmtBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/dashboard.js?v=1.5"></script>
+
+</body>
+</html>

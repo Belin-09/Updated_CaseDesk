@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseDesk — Review Queue</title>
+  <link rel="stylesheet" href="assets/style.css?v=1.5">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-left">
+      <div class="navbar-logo">CaseDesk</div>
+      <div class="navbar-links">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="review.html">Review Queue</a>
+        <a href="analytics.html">Analytics</a>
+        <a href="timeline.html">Timeline</a>
+      </div>
+    </div>
+    <div class="navbar-right">
+      <span class="navbar-user">Logged in as <span id="navUsername"></span></span>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Manual Review Queue</div>
+        <div class="page-subtitle" id="reviewCount">Loading...</div>
+      </div>
+      <select id="reasonFilter">
+        <option value="">All Reasons</option>
+        <option value="EMPTY_TEXT">Empty Text</option>
+        <option value="LOW_FIELDS">Low Fields</option>
+        <option value="LOW_OCR_CONFIDENCE">Low OCR Confidence</option>
+        <option value="EXTRACTION_EXCEPTION">Extraction Exception</option>
+        <option value="ESCALATED">Escalated</option>
+      </select>
+    </div>
+
+    <div class="review-layout">
+      <!-- Left: list of flagged cases -->
+      <div>
+        <div id="reviewList"></div>
+        <div id="emptyState" class="empty-state" style="display:none;">
+          <div class="empty-state-icon">✅</div>
+          <div>No flagged cases — queue is clear</div>
+        </div>
+      </div>
+
+      <!-- Right: detail panel -->
+      <div class="review-detail-panel empty" id="reviewDetail">
+        Select a case from the list to review
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/review.js?v=1.5"></script>
+</body>
+</html>

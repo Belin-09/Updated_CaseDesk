@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseDesk — Analytics</title>
+  <link rel="stylesheet" href="assets/style.css?v=1.5">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-left">
+      <div class="navbar-logo">CaseDesk</div>
+      <div class="navbar-links">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="review.html">Review Queue</a>
+        <a href="analytics.html">Analytics</a>
+        <a href="timeline.html">Timeline</a>
+      </div>
+    </div>
+    <div class="navbar-right">
+      <span class="navbar-user">Logged in as <span id="navUsername"></span></span>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Analytics</div>
+        <div class="page-subtitle">Case statistics and trends</div>
+      </div>
+    </div>
+
+    <!-- Summary stat cards -->
+    <div class="stats-row" id="statsRow"></div>
+
+    <!-- Charts -->
+    <div class="charts-grid">
+      <div class="chart-card full-width">
+        <h3>Cases Per Month</h3>
+        <div class="chart-container">
+          <canvas id="monthChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Cases by Incident Type</h3>
+        <div class="chart-container">
+          <canvas id="incidentChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3>Cases by Officer (Top 10)</h3>
+        <div class="chart-container">
+          <canvas id="officerChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card full-width">
+        <h3>Review Queue — Flag Reasons</h3>
+        <div class="chart-container">
+          <canvas id="reviewChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/analytics.js?v=1.5"></script>
+</body>
+</html>

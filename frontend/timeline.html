@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseDesk — Timeline</title>
+  <link rel="stylesheet" href="assets/style.css?v=1.5">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-left">
+      <div class="navbar-logo">CaseDesk</div>
+      <div class="navbar-links">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="review.html">Review Queue</a>
+        <a href="analytics.html">Analytics</a>
+        <a href="timeline.html" class="active">Timeline</a>
+      </div>
+    </div>
+    <div class="navbar-right">
+      <span class="navbar-user">Logged in as <span id="navUsername"></span></span>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <div class="page-title">Case Timeline</div>
+        <div class="page-subtitle" id="timelineCount">Loading...</div>
+      </div>
+    </div>
+
+    <div class="timeline-container" id="timelineContainer"></div>
+
+    <div id="emptyState" class="empty-state" style="display:none;">
+      <div class="empty-state-icon">🕓</div>
+      <div>No cases yet</div>
+    </div>
+  </div>
+
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/timeline.js?v=1.5"></script>
+</body>
+</html>

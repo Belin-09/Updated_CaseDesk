@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseDesk — Login</title>
+  <link rel="stylesheet" href="assets/style.css?v=1.5">
+</head>
+<body>
+
+  <div class="login-container">
+    <h1>CaseDesk</h1>
+    <p class="subtitle">Case File Management System</p>
+
+    <div class="error-msg" id="errorMsg"></div>
+
+    <form id="loginForm">
+      <div class="form-group">
+        <label for="username">Username</label>
+        <input type="text" id="username" required autocomplete="username">
+      </div>
+
+      <div class="form-group">
+        <label for="password">Password</label>
+        <input type="password" id="password" required autocomplete="current-password">
+      </div>
+
+      <button type="submit" class="login-btn" id="loginBtn">Sign In</button>
+    </form>
+
+    <p class="footer-note">Authorized personnel only</p>
+  </div>
+
+  <script src="assets/app.js?v=1.5"></script>
+</body>
+</html>

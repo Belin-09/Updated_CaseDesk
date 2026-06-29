@@ -1,0 +1,16 @@
+bcrypt
+fastapi
+uvicorn[standard]
+sqlalchemy
+pymysql
+python-dotenv
+passlib[bcrypt]
+python-jose[cryptography]
+pdfplumber
+python-docx
+pdf2image
+pytesseract
+spacy
+reportlab
+python-multipart
+Pillow
