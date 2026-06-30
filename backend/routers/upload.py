@@ -50,7 +50,7 @@ scan_lock = threading.Lock()
 # ── Manual single-file upload (unchanged — for testing/demos) ───────────────
 
 @router.post("/")
-async def upload_file(
+def upload_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
@@ -63,7 +63,7 @@ async def upload_file(
         )
 
     # 2. Read + size check
-    contents = await file.read()
+    contents = file.file.read()
     if len(contents) > MAX_FILE_SIZE:
         raise HTTPException(
             status_code=400,
@@ -90,6 +90,9 @@ async def upload_file(
     try:
         raw_text, ocr_confidence = extract_text(file_path, file_type)
     except Exception as e:
+        import traceback
+        print(f"Error extracting text from uploaded file {file.filename}:")
+        traceback.print_exc()
         extraction_exception = str(e)
 
     # 6. Parse fields
@@ -98,6 +101,9 @@ async def upload_file(
         try:
             fields = parse_fields(raw_text)
         except Exception as e:
+            import traceback
+            print(f"Error parsing fields from uploaded file {file.filename}:")
+            traceback.print_exc()
             extraction_exception = str(e)
 
     # 7. Validate
@@ -138,7 +144,7 @@ async def upload_file(
         file_type=file_type,
         raw_text=raw_text,
         ocr_confidence=str(ocr_confidence) if ocr_confidence is not None else None,
-        extraction_error=error_reason if error_flag else None,
+        extraction_error=extraction_exception or (error_reason if error_flag else None),
     )
     db.add(case_file)
     db.commit()

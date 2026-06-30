@@ -32,7 +32,7 @@ def extract_from_scanned_pdf(file_path: str) -> tuple[str, float]:
     confidences = []
 
     try:
-        images = convert_from_path(file_path, dpi=300, poppler_path=POPPLER_PATH)
+        images = convert_from_path(file_path, dpi=150, poppler_path=POPPLER_PATH)
     except Exception as e:
         raise RuntimeError(f"pdf2image failed: {str(e)}")
 

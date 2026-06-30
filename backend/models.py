@@ -2,6 +2,7 @@ from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
 from sqlalchemy.sql import func
 from database import Base
 from sqlalchemy import Float
+from sqlalchemy.dialects.mysql import LONGTEXT
 
 class Case(Base):
     __tablename__ = "cases"
@@ -20,7 +21,7 @@ class Case(Base):
 
     evidence = Column(Text, nullable=True)
     notes = Column(Text, nullable=True)
-    raw_text = Column(Text, nullable=True)
+    raw_text = Column(LONGTEXT, nullable=True)
 
     # Status
     status         = Column(String(50), index=True, default="open")
@@ -57,7 +58,7 @@ class CaseFile(Base):
     file_name        = Column(String(255))
     file_path        = Column(String(500))
     file_type        = Column(String(50))
-    raw_text         = Column(Text, nullable=True)
+    raw_text         = Column(LONGTEXT, nullable=True)
     ocr_confidence   = Column(Float, nullable=True)
     extraction_error = Column(String(255), nullable=True)
     created_at       = Column(DateTime, server_default=func.now())
