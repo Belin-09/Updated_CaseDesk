@@ -188,12 +188,13 @@ def upload_file(
 def process_single_folder(folder: dict, username: str):
     case_name = folder["case_name"]
     case_path = folder["case_path"]
+    is_file = folder.get("is_file", False)
     db = SessionLocal()
     try:
         with scan_lock:
             scan_state["current_case"] = case_name
 
-        fingerprint = get_folder_fingerprint(case_path)
+        fingerprint = get_folder_fingerprint(case_path, is_file)
         existing = db.query(Case).filter(Case.source_folder == case_path).first()
 
         if existing:
@@ -212,7 +213,7 @@ def process_single_folder(folder: dict, username: str):
                 return
 
             # Folder changed — reprocess and UPDATE existing case
-            data = process_case_folder(case_name, case_path)
+            data = process_case_folder(case_name, case_path, is_file)
 
             existing.file_name = data["file_name"]
             existing.raw_text = data["raw_text"]
@@ -226,6 +227,7 @@ def process_single_folder(folder: dict, username: str):
             existing.notes = data["notes"]
             existing.error_flag = data["error_flag"]
             existing.error_reason = data["error_reason"]
+            existing.ocr_confidence = str(data["ocr_confidence"]) if data["ocr_confidence"] is not None else None
             existing.file_count = fingerprint["file_count"]
             existing.last_modified = fingerprint["last_modified"]
             existing.updated_at = datetime.utcnow()
@@ -265,7 +267,7 @@ def process_single_folder(folder: dict, username: str):
 
         else:
             # New case folder
-            data = process_case_folder(case_name, case_path)
+            data = process_case_folder(case_name, case_path, is_file)
 
             case = Case(
                 case_name=data["case_name"],
@@ -428,3 +430,28 @@ def scan_folder(
 def get_scan_status(current_user=Depends(get_current_user)):
     with scan_lock:
         return dict(scan_state)
+
+
+# ── Local folder picker dialog ─────────────────────────────────────────────
+
+@router.post("/select-folder")
+def select_folder(current_user=Depends(get_current_user)):
+    """
+    Open a native directory dialog on the server's local machine (since the app runs locally).
+    Returns the selected folder path.
+    """
+    import tkinter as tk
+    from tkinter import filedialog
+    
+    try:
+        root = tk.Tk()
+        root.withdraw()  # Hide the main tkinter window
+        root.attributes("-topmost", True)  # Bring dialog to the front
+        folder_path = filedialog.askdirectory(parent=root, title="Select Cases Root Folder")
+        root.destroy()
+        
+        return {"folder_path": folder_path if folder_path else None}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to open folder picker: {str(e)}")

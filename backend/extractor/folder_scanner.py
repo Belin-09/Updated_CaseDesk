@@ -9,79 +9,87 @@ SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".jpg", ".jpeg", ".png"}
 
 def get_case_folders(root_path: str) -> list[dict]:
     """
-    Walk the root path and find all case folders.
-    Structure: root/year/Case No-XX-YYYY/
-    Returns list of {case_name, case_path}
+    Walk the root path and find all case folders and standalone files.
+    Structure:
+    - Root level: root/some_file.pdf
+    - Year level: root/year/some_file.pdf or root/year/Case Folder/
+    Returns list of {case_name, case_path, is_file}
     """
     case_folders = []
 
     if not os.path.exists(root_path):
         raise ValueError(f"Root path does not exist: {root_path}")
 
-    # Walk two levels deep: year/ → case folder/
+    # Walk two levels deep: year/ -> case folder/ or standalone files
     for year_entry in os.scandir(root_path):
-        if not year_entry.is_dir():
-            continue
-        for case_entry in os.scandir(year_entry.path):
-            if not case_entry.is_dir():
-                continue
-            case_folders.append({
-                "case_name": case_entry.name,
-                "case_path": case_entry.path,
-            })
+        if year_entry.is_file():
+            ext = os.path.splitext(year_entry.name)[1].lower()
+            if ext in {".pdf", ".docx", ".jpg", ".jpeg", ".png"}:
+                case_folders.append({
+                    "case_name": year_entry.name,
+                    "case_path": year_entry.path,
+                    "is_file": True
+                })
+        elif year_entry.is_dir():
+            for case_entry in os.scandir(year_entry.path):
+                if case_entry.is_file():
+                    ext = os.path.splitext(case_entry.name)[1].lower()
+                    if ext in {".pdf", ".docx", ".jpg", ".jpeg", ".png"}:
+                        case_folders.append({
+                            "case_name": case_entry.name,
+                            "case_path": case_entry.path,
+                            "is_file": True
+                        })
+                elif case_entry.is_dir():
+                    case_folders.append({
+                        "case_name": case_entry.name,
+                        "case_path": case_entry.path,
+                        "is_file": False
+                    })
 
     return case_folders
 
 
 def collect_files(case_path: str) -> list[dict]:
     """
-    Collect all processable files from a case folder.
-    - Root level: .pdf, .docx
-    - photos/ subfolder: .jpg, .jpeg, .png
-    - RDA/ subfolder: .pdf, .docx
+    Collect all processable files from a case folder recursively.
+    Traverses all subdirectories and collects:
+    - .pdf, .docx (treated as document files)
+    - .jpg, .jpeg, .png (treated as image files)
     Returns list of {file_path, file_type}
     """
     files = []
 
-    for entry in os.scandir(case_path):
-        if entry.is_file():
-            ext = os.path.splitext(entry.name)[1].lower()
+    for root, dirs, filenames in os.walk(case_path):
+        for filename in filenames:
+            ext = os.path.splitext(filename)[1].lower()
             if ext in {".pdf", ".docx"}:
                 files.append({
-                    "file_path": entry.path,
-                    "file_type": detect_file_type(entry.name)
+                    "file_path": os.path.join(root, filename),
+                    "file_type": detect_file_type(filename)
                 })
-        elif entry.is_dir() and entry.name.lower() == "photos":
-            # Scan photos subfolder for images
-            for photo_entry in os.scandir(entry.path):
-                if photo_entry.is_file():
-                    ext = os.path.splitext(photo_entry.name)[1].lower()
-                    if ext in {".jpg", ".jpeg", ".png"}:
-                        files.append({
-                            "file_path": photo_entry.path,
-                            "file_type": "image"
-                        })
-        elif entry.is_dir() and entry.name.lower() == "rda":
-            # Scan RDA subfolder for documents (.pdf, .docx)
-            for rda_entry in os.scandir(entry.path):
-                if rda_entry.is_file():
-                    ext = os.path.splitext(rda_entry.name)[1].lower()
-                    if ext in {".pdf", ".docx"}:
-                        files.append({
-                            "file_path": rda_entry.path,
-                            "file_type": detect_file_type(rda_entry.name)
-                        })
+            elif ext in {".jpg", ".jpeg", ".png"}:
+                files.append({
+                    "file_path": os.path.join(root, filename),
+                    "file_type": "image"
+                })
 
     return files
 
 
-def process_case_folder(case_name: str, case_path: str) -> dict:
+def process_case_folder(case_name: str, case_path: str, is_file: bool = False) -> dict:
     """
-    Process all files in a case folder.
+    Process all files in a case folder or a standalone file.
     Tracks per-file extraction AND merges text for field extraction.
     Returns a dict with case data + a list of file records.
     """
-    files = collect_files(case_path)
+    if is_file:
+        files = [{
+            "file_path": case_path,
+            "file_type": detect_file_type(case_name)
+        }]
+    else:
+        files = collect_files(case_path)
 
     merged_text = ""
     ocr_confidences = []
@@ -156,12 +164,25 @@ def process_case_folder(case_name: str, case_path: str) -> dict:
         "file_records": file_records,  # ← NEW
     }
 
-def get_folder_fingerprint(case_path: str) -> dict:
+def get_folder_fingerprint(case_path: str, is_file: bool = False) -> dict:
     """
-    Compute a fingerprint of a case folder's contents:
-    file count + latest modification time across all relevant files
-    (root level docs + photos/ subfolder images).
+    Compute a fingerprint of a case folder's (or standalone file's) contents:
+    file count + latest modification time across all relevant files.
     """
+    if is_file:
+        try:
+            mtime = os.path.getmtime(case_path)
+            last_modified = datetime.fromtimestamp(mtime).replace(microsecond=0)
+            return {
+                "file_count": 1,
+                "last_modified": last_modified
+            }
+        except OSError:
+            return {
+                "file_count": 1,
+                "last_modified": None
+            }
+
     files = collect_files(case_path)
 
     file_count = len(files)

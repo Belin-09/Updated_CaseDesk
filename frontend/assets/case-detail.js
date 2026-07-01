@@ -200,9 +200,18 @@ function loadPreview(fileName, fileId, rawTextContent) {
         finalUrl += `#search=${encodeURIComponent(searchTerm)}`;
       }
       previewContainer.innerHTML = `
-        <iframe src="${finalUrl}" class="pdf-preview-iframe" style="width:100%; height:600px; border:1px solid #2a3441; border-radius:6px; background:#0f1419;"></iframe>
+        <iframe src="${finalUrl}" class="pdf-preview-iframe" style="width:100%; height:600px; border:1px solid #2a3441; border-radius:6px; background:#0f1419; margin-bottom: 12px;"></iframe>
+        <div style="background:#1e293b; color:#38bdf8; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:12px; font-weight:600; border:1px solid rgba(56, 189, 248, 0.2);">
+          📕 PDF Document Text Preview (extracted text is shown below):
+        </div>
       `;
-      rawTextBox.style.display = "none";
+      rawTextBox.style.display = "block";
+      const textToDisplay = rawTextContent || "No extracted text available.";
+      if (searchTerm) {
+        rawTextBox.innerHTML = highlightSearchTerm(textToDisplay, searchTerm);
+      } else {
+        rawTextBox.textContent = textToDisplay;
+      }
     } else if (["png", "jpg", "jpeg"].includes(ext)) {
       previewContainer.innerHTML = `
         <div style="text-align: center; background:#0f1419; padding: 20px; border:1px solid #2a3441; border-radius:6px; max-height: 600px; overflow: auto; margin-bottom: 12px;">

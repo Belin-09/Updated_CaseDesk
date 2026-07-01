@@ -7,6 +7,7 @@ const totalCount = document.getElementById("totalCount");
 const pagination = document.getElementById("pagination");
 
 const searchInput = document.getElementById("searchInput");
+const caseSearchInput = document.getElementById("caseSearchInput");
 const statusFilter = document.getElementById("statusFilter");
 const sortBy = document.getElementById("sortBy");
 const sortOrder = document.getElementById("sortOrder");
@@ -24,6 +25,7 @@ async function loadCases() {
   });
 
   if (searchInput.value.trim()) params.append("search", searchInput.value.trim());
+  if (caseSearchInput.value.trim()) params.append("case_search", caseSearchInput.value.trim());
   if (statusFilter.value) params.append("status", statusFilter.value);
 
   const response = await apiFetch(`/cases/?${params.toString()}`);
@@ -65,7 +67,32 @@ function renderCases(cases) {
       ? `<span class="badge badge-hits">${c.hit_count} hit${c.hit_count !== 1 ? 's' : ''}</span>`
       : '';
 
-    const detailUrl = `case-detail.html?id=${c.id}&v=1.5${isSearchActive ? '&search=' + encodeURIComponent(searchTerm) : ''}`;
+    const detailUrl = `case-detail.html?id=${c.id}&v=1.6${isSearchActive ? '&search=' + encodeURIComponent(searchTerm) : ''}`;
+
+    let matchedFilesHtml = "";
+    if (c.matched_files && c.matched_files.length > 0) {
+      matchedFilesHtml = `
+        <div class="matched-files-section" style="margin-top: 12px; padding-top: 12px; border-top: 1px dashed #2a3441;">
+          <div style="font-size: 11px; color: #8a93a3; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">Matched in files:</div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px;">
+            ${c.matched_files.map(f => {
+              const ext = f.file_name.split('.').pop().toLowerCase();
+              let icon = "📄";
+              if (ext === "pdf") icon = "📕";
+              else if (["png", "jpg", "jpeg"].includes(ext)) icon = "🖼️";
+              
+              return `
+                <span class="matched-file-pill" style="font-size: 12px; background: rgba(79, 156, 255, 0.08); border: 1px solid rgba(79, 156, 255, 0.25); color: #4f9cff; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="${escapeHtml(f.file_name)}">
+                  <span>${icon}</span>
+                  <span style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(f.file_name)}</span>
+                  <span style="background: rgba(79, 156, 255, 0.2); font-size: 10px; font-weight: 700; padding: 1px 4px; border-radius: 3px; margin-left: 2px;">${f.hit_count} hit${f.hit_count !== 1 ? 's' : ''}</span>
+                </span>
+              `;
+            }).join("")}
+          </div>
+        </div>
+      `;
+    }
 
     return `
       <div class="case-card" onclick="window.location.href='${detailUrl}'">
@@ -95,6 +122,7 @@ function renderCases(cases) {
           <span class="case-card-field-label">Incident</span>
           <span class="case-card-field-value">${escapeHtml(c.incident_type || '—')}</span>
         </div>
+        ${matchedFilesHtml}
         <div class="case-card-footer">
           <span>Uploaded by ${escapeHtml(c.uploaded_by || 'unknown')}</span>
           <span>${formatDate(c.created_at)}</span>
@@ -166,6 +194,14 @@ function renderPagination(totalPages, page) {
 // ── Filters/search wiring ───────────────────────────────────────────────
 
 searchInput.addEventListener("input", () => {
+  clearTimeout(searchDebounce);
+  searchDebounce = setTimeout(() => {
+    currentPage = 1;
+    loadCases();
+  }, 400);
+});
+
+caseSearchInput.addEventListener("input", () => {
   clearTimeout(searchDebounce);
   searchDebounce = setTimeout(() => {
     currentPage = 1;
@@ -252,6 +288,9 @@ const scanFolderBtn = document.getElementById("scanFolderBtn");
 const cancelScanBtn = document.getElementById("cancelScanBtn");
 const confirmScanBtn = document.getElementById("confirmScanBtn");
 const scanPathInput = document.getElementById("scanPathInput");
+const browseFolderBtn = document.getElementById("browseFolderBtn");
+const scanFolderPickerDropzone = document.getElementById("scanFolderPickerDropzone");
+const scanFolderPickerPath = document.getElementById("scanFolderPickerPath");
 const scanResults = document.getElementById("scanResults");
 const scanStatus = document.getElementById("scanStatus");
 const scanItemList = document.getElementById("scanItemList");
@@ -261,6 +300,41 @@ scanFolderBtn.addEventListener("click", () => {
   scanResults.style.display = "none";
   scanStatus.classList.remove("show", "success", "error");
   scanPathInput.value = "";
+  scanFolderPickerPath.textContent = "No folder chosen";
+  scanFolderPickerPath.style.color = "#b0b8c4";
+});
+
+// Click forwarding for dashed container
+scanFolderPickerDropzone.addEventListener("click", (e) => {
+  if (e.target !== browseFolderBtn && !browseFolderBtn.disabled) {
+    browseFolderBtn.click();
+  }
+});
+
+browseFolderBtn.addEventListener("click", async (e) => {
+  e.stopPropagation(); // prevent infinite loop from dropzone click forward
+  browseFolderBtn.disabled = true;
+  const originalText = browseFolderBtn.textContent;
+  browseFolderBtn.textContent = "Opening...";
+
+  try {
+    const response = await apiFetch("/upload/select-folder", {
+      method: "POST"
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data.folder_path) {
+        scanPathInput.value = data.folder_path;
+        scanFolderPickerPath.textContent = data.folder_path;
+        scanFolderPickerPath.style.color = "#e8eaed"; // change path to white to highlight
+      }
+    }
+  } catch (error) {
+    console.error("Folder selector failed:", error);
+  } finally {
+    browseFolderBtn.disabled = false;
+    browseFolderBtn.textContent = originalText;
+  }
 });
 
 cancelScanBtn.addEventListener("click", () => {

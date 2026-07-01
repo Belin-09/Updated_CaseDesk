@@ -24,7 +24,7 @@ async function loadTimeline() {
       <div class="timeline-date-count">${group.cases.length} case${group.cases.length !== 1 ? "s" : ""}</div>
       <div class="timeline-cases">
         ${group.cases.map(c => `
-          <div class="timeline-card ${c.error_flag ? 'flagged' : ''}" onclick="window.location.href='case-detail.html?id=${c.id}&v=1.5'">
+          <div class="timeline-card ${c.error_flag ? 'flagged' : ''}" onclick="window.location.href='case-detail.html?id=${c.id}&v=1.6'">
             <div class="timeline-card-left">
               <div class="title">${escapeHtml(c.case_name || c.file_name || 'Untitled Case')}</div>
               <div class="meta">

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from typing import Optional
 from database import get_db
 from models import Case, CaseFile, AuditLog
@@ -33,9 +33,10 @@ class CaseUpdateRequest(BaseModel):
 def count_hits(case, search_term: str) -> int:
     if not search_term:
         return 0
-    search_lower = search_term.lower()
-    # Only count hits inside raw_text, notes, and evidence (main text/contents)
-    # to avoid double counting from metadata fields that were extracted from raw_text
+    # Normalize search term by replacing spaces and hyphens with a single space
+    search_norm = re.sub(r'[\s\-]+', ' ', search_term.lower()).strip()
+    
+    # Only count hits inside raw_text, notes, and evidence
     fields = [
         case.raw_text,
         case.notes,
@@ -44,7 +45,8 @@ def count_hits(case, search_term: str) -> int:
     count = 0
     for field in fields:
         if field:
-            count += field.lower().count(search_lower)
+            field_norm = re.sub(r'[\s\-]+', ' ', field.lower())
+            count += field_norm.count(search_norm)
     return count
 
 
@@ -53,6 +55,7 @@ def count_hits(case, search_term: str) -> int:
 @router.get("/")
 def list_cases(
     search: Optional[str] = Query(None, description="Search across officer, location, complainant, case_name"),
+    case_search: Optional[str] = Query(None, description="Search strictly by folder name, file name, or ID"),
     status: Optional[str] = Query(None, description="Filter by status: open/closed/pending"),
     incident_type: Optional[str] = Query(None, description="Filter by incident type"),
     error_flag: Optional[bool] = Query(None, description="Filter flagged cases"),
@@ -65,29 +68,63 @@ def list_cases(
 ):
     query = db.query(Case)
 
-    # Search across multiple fields
+    # Search strictly by folder name, file name, or ID
+    if case_search:
+        cs_term = case_search.strip()
+        cs_tokens = [t.strip() for t in re.split(r'[\s\-]+', cs_term) if t.strip()]
+        if cs_tokens:
+            token_match_conditions = []
+            for t in cs_tokens:
+                token_match_conditions.append(
+                    or_(
+                        Case.case_name.ilike(f"%{t}%"),
+                        Case.file_name.ilike(f"%{t}%")
+                    )
+                )
+            and_condition = and_(*token_match_conditions)
+            
+            if cs_term.isdigit() or re.match(r'^#?\d+$', cs_term):
+                digits = re.sub(r'\D', '', cs_term)
+                query = query.filter(or_(Case.id == int(digits), and_condition))
+            else:
+                query = query.filter(and_condition)
+
+    # Search across multiple fields using token-based AND matching
     if search:
         search_term = search.strip()
-        # Strip boolean-mode special characters to avoid unexpected query behavior
-        sanitized = re.sub(r'[+\-><()~*"@]', ' ', search_term).strip()
+        # Split search query by space or hyphen to enforce logical AND search
+        tokens = [t.strip() for t in re.split(r'[\s\-]+', search_term) if t.strip()]
         
-        # Build strict BOOLEAN MODE search query by prefixing every word token with '+'
-        # and suffixing the final word with '*' to enforce logical AND search.
-        tokens = sanitized.split()
         if tokens:
-            boolean_search = " ".join([f"+{t}" for t in tokens[:-1]] + [f"+{tokens[-1]}*"])
-        else:
-            boolean_search = ""
-
-        if boolean_search:
-            query = query.filter(
-                or_(
-                    text("MATCH(officer, location, complainant, suspect, case_name, raw_text) "
-                        "AGAINST (:search IN BOOLEAN MODE)"),
-                    Case.incident_type.ilike(f"%{search}%"),
-                    Case.notes.ilike(f"%{search}%"),
-                )
-            ).params(search=boolean_search)
+            # Check if searching for a case folder name pattern (e.g. "Case No-12" or "Case 12")
+            is_case_name_search = bool(re.match(r'^case\s*(?:no)?[\s\-]*\d+', search_term.lower()))
+            
+            token_conditions = []
+            for t in tokens:
+                if is_case_name_search:
+                    # Restrict matching to case_name and file_name only
+                    token_conditions.append(
+                        or_(
+                            Case.case_name.ilike(f"%{t}%"),
+                            Case.file_name.ilike(f"%{t}%")
+                        )
+                    )
+                else:
+                    # Search across all fields
+                    token_conditions.append(
+                        or_(
+                            Case.case_name.ilike(f"%{t}%"),
+                            Case.file_name.ilike(f"%{t}%"),
+                            Case.officer.ilike(f"%{t}%"),
+                            Case.location.ilike(f"%{t}%"),
+                            Case.complainant.ilike(f"%{t}%"),
+                            Case.suspect.ilike(f"%{t}%"),
+                            Case.incident_type.ilike(f"%{t}%"),
+                            Case.notes.ilike(f"%{t}%"),
+                            Case.raw_text.ilike(f"%{t}%"),
+                        )
+                    )
+            query = query.filter(and_(*token_conditions))
 
     # Filters
     if status:
@@ -104,6 +141,7 @@ def list_cases(
     else:
         query = query.order_by(sort_column.desc())
 
+    matched_files_map = defaultdict(list)
     if search:
         search_cleaned = search.strip()
         # Load all matches to count hits
@@ -113,9 +151,35 @@ def list_cases(
             c.hit_count = count_hits(c, search_cleaned)
         total_hits = sum(c.hit_count for c in all_cases)
         
+        # Sort by hit_count descending (most hits to least hits)
+        all_cases.sort(key=lambda x: getattr(x, "hit_count", 0), reverse=True)
+        
         # Paginate in memory
         start_idx = (page - 1) * page_size
         cases = all_cases[start_idx:start_idx + page_size]
+
+        # Find which files contain search hits for the paginated subset
+        case_ids = [c.id for c in cases]
+        if case_ids:
+            cfiles = db.query(CaseFile).filter(CaseFile.case_id.in_(case_ids)).all()
+            for cf in cfiles:
+                if cf.raw_text and search_cleaned.lower() in cf.raw_text.lower():
+                    f_hits = cf.raw_text.lower().count(search_cleaned.lower())
+                    if f_hits > 0:
+                        matched_files_map[cf.case_id].append({
+                            "file_name": cf.file_name,
+                            "hit_count": f_hits
+                        })
+            
+            # Fallback if no files are in the CaseFile table (e.g. legacy/manual uploads)
+            for c in cases:
+                if not matched_files_map[c.id] and c.file_name:
+                    f_hits = count_hits(c, search_cleaned)
+                    if f_hits > 0:
+                        matched_files_map[c.id].append({
+                            "file_name": c.file_name,
+                            "hit_count": f_hits
+                        })
     else:
         total = query.count()
         cases = query.offset((page - 1) * page_size).limit(page_size).all()
@@ -143,7 +207,8 @@ def list_cases(
                 "error_reason": c.error_reason,
                 "uploaded_by": c.uploaded_by,
                 "created_at": c.created_at,
-                "hit_count": getattr(c, "hit_count", 0) if search else 0
+                "hit_count": getattr(c, "hit_count", 0) if search else 0,
+                "matched_files": matched_files_map.get(c.id, []) if search else []
             }
             for c in cases
         ]
