@@ -190,9 +190,10 @@ function loadPreview(fileName, fileId, rawTextContent) {
   
   if (fileName) {
     const ext = fileName.split('.').pop().toLowerCase();
+    const currentToken = localStorage.getItem("token");
     const viewUrl = fileId === 0 
-      ? `${API_BASE}/cases/${window.currentCaseId}/view-source?token=${token}`
-      : `${API_BASE}/cases/files/${fileId}/view?token=${token}`;
+      ? `${API_BASE}/cases/${window.currentCaseId}/view-source?token=${currentToken}&_t=${Date.now()}`
+      : `${API_BASE}/cases/files/${fileId}/view?token=${currentToken}&_t=${Date.now()}`;
 
     if (ext === "pdf") {
       let finalUrl = viewUrl;
@@ -246,6 +247,13 @@ function loadPreview(fileName, fileId, rawTextContent) {
     previewContainer.innerHTML = `<div style="color:#5a6473; font-size:13px;">No document associated with this case.</div>`;
     rawTextBox.style.display = "none";
   }
+
+  if (searchTerm && rawTextBox.style.display !== "none") {
+    renderHitNavigator();
+  } else {
+    const existingNav = document.getElementById("hitNavigator");
+    if (existingNav) existingNav.remove();
+  }
 }
 
 function escapeHtml(str) {
@@ -264,11 +272,13 @@ function highlightSearchTerm(text, term) {
   
   let result = "";
   let lastIndex = 0;
+  let hitIndex = 0;
   let index = lowerText.indexOf(lowerTerm, lastIndex);
   
   while (index !== -1) {
     result += escapeHtml(text.substring(lastIndex, index));
-    result += `<mark class="search-highlight">${escapeHtml(text.substring(index, index + term.length))}</mark>`;
+    result += `<mark class="search-highlight" data-hit-index="${hitIndex}">${escapeHtml(text.substring(index, index + term.length))}</mark>`;
+    hitIndex++;
     lastIndex = index + term.length;
     index = lowerText.indexOf(lowerTerm, lastIndex);
   }
@@ -276,6 +286,68 @@ function highlightSearchTerm(text, term) {
   result += escapeHtml(text.substring(lastIndex));
   return result;
 }
+
+// ── Hit Navigator ────────────────────────────────────────────────────────
+
+let currentHitIndex = 0;
+let totalHits = 0;
+
+function renderHitNavigator() {
+  // Remove any existing navigator
+  const existing = document.getElementById("hitNavigator");
+  if (existing) existing.remove();
+
+  const rawTextBox = document.getElementById("rawTextBox");
+  if (!rawTextBox) return;
+
+  const marks = rawTextBox.querySelectorAll("mark.search-highlight");
+  totalHits = marks.length;
+  if (totalHits === 0) return;
+
+  currentHitIndex = 0;
+
+  const nav = document.createElement("div");
+  nav.className = "hit-navigator";
+  nav.id = "hitNavigator";
+  nav.innerHTML = `
+    <span class="hit-counter">🔍 <span class="hit-current" id="hitCurrentNum">1</span> of ${totalHits} hit${totalHits !== 1 ? "s" : ""} in text</span>
+    <button id="hitPrevBtn" onclick="navigateHit(-1)">▲ Prev</button>
+    <button id="hitNextBtn" onclick="navigateHit(1)">▼ Next</button>
+  `;
+
+  rawTextBox.parentNode.insertBefore(nav, rawTextBox);
+
+  // Jump to first hit
+  jumpToHit(0);
+}
+
+function jumpToHit(index) {
+  const rawTextBox = document.getElementById("rawTextBox");
+  if (!rawTextBox) return;
+
+  const marks = rawTextBox.querySelectorAll("mark.search-highlight");
+  if (marks.length === 0) return;
+
+  // Clamp index
+  if (index < 0) index = marks.length - 1;
+  if (index >= marks.length) index = 0;
+  currentHitIndex = index;
+
+  // Remove active class from all, add to current
+  marks.forEach(m => m.classList.remove("active-hit"));
+  marks[currentHitIndex].classList.add("active-hit");
+
+  // Scroll the mark into view inside the rawTextBox
+  marks[currentHitIndex].scrollIntoView({ behavior: "smooth", block: "center" });
+
+  // Update counter
+  const counter = document.getElementById("hitCurrentNum");
+  if (counter) counter.textContent = currentHitIndex + 1;
+}
+
+window.navigateHit = function(direction) {
+  jumpToHit(currentHitIndex + direction);
+};
 
 function formatDateTime(isoStr) {
   if (!isoStr) return "—";

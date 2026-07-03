@@ -419,6 +419,52 @@ def verify_token_from_anywhere(
     return user
 
 
+import os
+import mimetypes
+
+BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+UPLOAD_DIR = os.path.abspath(os.path.join(BASE_DIR, "uploads"))
+
+def get_safe_file_path(raw_file_path: str, source_folder: Optional[str] = None) -> str:
+    if not raw_file_path:
+        raise HTTPException(status_code=404, detail="File path not recorded")
+    
+    if not os.path.isabs(raw_file_path):
+        resolved_path = os.path.abspath(os.path.join(BASE_DIR, raw_file_path))
+    else:
+        resolved_path = os.path.abspath(raw_file_path)
+        
+    real_path = os.path.realpath(resolved_path)
+    
+    if not os.path.exists(real_path):
+        raise HTTPException(status_code=404, detail="File does not exist on disk")
+        
+    # Allowed roots: BASE_DIR, UPLOAD_DIR, plus source_folder/file parent dir
+    allowed_roots = [os.path.realpath(BASE_DIR), os.path.realpath(UPLOAD_DIR)]
+    
+    if source_folder:
+        sf_abs = os.path.realpath(source_folder if os.path.isabs(source_folder) else os.path.join(BASE_DIR, source_folder))
+        allowed_roots.append(sf_abs)
+        allowed_roots.append(os.path.realpath(os.path.dirname(sf_abs)))
+
+    # Also allow parent directory of the file itself since it's recorded in DB
+    allowed_roots.append(os.path.realpath(os.path.dirname(real_path)))
+
+    # Path traversal check using os.path.normcase for Windows drive letter / case matching
+    real_norm = os.path.normcase(real_path)
+    is_safe = False
+    for root in allowed_roots:
+        root_norm = os.path.normcase(root)
+        if real_norm == root_norm or real_norm.startswith(root_norm + os.sep) or real_norm.startswith(root_norm + "/"):
+            is_safe = True
+            break
+
+    if not is_safe:
+        raise HTTPException(status_code=403, detail="Access denied: file path is outside authorized directories")
+        
+    return real_path
+
+
 # ── GET /cases/{id}/download-source — download the main file ────────────────
 
 @router.get("/{case_id}/download-source")
@@ -427,27 +473,15 @@ def download_case_source_file(
     db: Session = Depends(get_db),
     current_user=Depends(verify_token_from_anywhere)
 ):
-    import os
     from fastapi.responses import FileResponse
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
         
-    file_path = case.file_path
-    if not file_path:
-        raise HTTPException(status_code=404, detail="Source file path not recorded")
-        
-    if not os.path.isabs(file_path):
-        base_dir = os.path.join(os.path.dirname(__file__), "..")
-        resolved_path = os.path.abspath(os.path.join(base_dir, file_path))
-    else:
-        resolved_path = file_path
-        
-    if not os.path.exists(resolved_path):
-        raise HTTPException(status_code=404, detail="File does not exist on disk")
+    safe_path = get_safe_file_path(case.file_path, case.source_folder)
         
     return FileResponse(
-        path=resolved_path,
+        path=safe_path,
         filename=case.file_name or "source_file",
         media_type="application/octet-stream"
     )
@@ -461,27 +495,18 @@ def download_case_file(
     db: Session = Depends(get_db),
     current_user=Depends(verify_token_from_anywhere)
 ):
-    import os
     from fastapi.responses import FileResponse
     case_file = db.query(CaseFile).filter(CaseFile.id == file_id).first()
     if not case_file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    file_path = case_file.file_path
-    if not file_path:
-        raise HTTPException(status_code=404, detail="File path not recorded")
-        
-    if not os.path.isabs(file_path):
-        base_dir = os.path.join(os.path.dirname(__file__), "..")
-        resolved_path = os.path.abspath(os.path.join(base_dir, file_path))
-    else:
-        resolved_path = file_path
-        
-    if not os.path.exists(resolved_path):
-        raise HTTPException(status_code=404, detail="File does not exist on disk")
+    case = db.query(Case).filter(Case.id == case_file.case_id).first()
+    source_folder = case.source_folder if case else None
+    
+    safe_path = get_safe_file_path(case_file.file_path, source_folder)
         
     return FileResponse(
-        path=resolved_path,
+        path=safe_path,
         filename=case_file.file_name or "source_file",
         media_type="application/octet-stream"
     )
@@ -495,33 +520,21 @@ def view_case_source_file(
     db: Session = Depends(get_db),
     current_user=Depends(verify_token_from_anywhere)
 ):
-    import os
-    import mimetypes
     from fastapi.responses import FileResponse
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
         
-    file_path = case.file_path
-    if not file_path:
-        raise HTTPException(status_code=404, detail="Source file path not recorded")
+    safe_path = get_safe_file_path(case.file_path, case.source_folder)
         
-    if not os.path.isabs(file_path):
-        base_dir = os.path.join(os.path.dirname(__file__), "..")
-        resolved_path = os.path.abspath(os.path.join(base_dir, file_path))
-    else:
-        resolved_path = file_path
-        
-    if not os.path.exists(resolved_path):
-        raise HTTPException(status_code=404, detail="File does not exist on disk")
-        
-    mime_type, _ = mimetypes.guess_type(resolved_path)
+    mime_type, _ = mimetypes.guess_type(safe_path)
     if not mime_type:
         mime_type = "application/octet-stream"
         
     return FileResponse(
-        path=resolved_path,
-        media_type=mime_type
+        path=safe_path,
+        media_type=mime_type,
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
     )
 
 
@@ -533,31 +546,22 @@ def view_case_file(
     db: Session = Depends(get_db),
     current_user=Depends(verify_token_from_anywhere)
 ):
-    import os
-    import mimetypes
     from fastapi.responses import FileResponse
     case_file = db.query(CaseFile).filter(CaseFile.id == file_id).first()
     if not case_file:
         raise HTTPException(status_code=404, detail="File not found")
     
-    file_path = case_file.file_path
-    if not file_path:
-        raise HTTPException(status_code=404, detail="File path not recorded")
+    case = db.query(Case).filter(Case.id == case_file.case_id).first()
+    source_folder = case.source_folder if case else None
+    
+    safe_path = get_safe_file_path(case_file.file_path, source_folder)
         
-    if not os.path.isabs(file_path):
-        base_dir = os.path.join(os.path.dirname(__file__), "..")
-        resolved_path = os.path.abspath(os.path.join(base_dir, file_path))
-    else:
-        resolved_path = file_path
-        
-    if not os.path.exists(resolved_path):
-        raise HTTPException(status_code=404, detail="File does not exist on disk")
-        
-    mime_type, _ = mimetypes.guess_type(resolved_path)
+    mime_type, _ = mimetypes.guess_type(safe_path)
     if not mime_type:
         mime_type = "application/octet-stream"
         
     return FileResponse(
-        path=resolved_path,
-        media_type=mime_type
+        path=safe_path,
+        media_type=mime_type,
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
     )

@@ -42,6 +42,7 @@ loginForm.addEventListener("submit", async (e) => {
     localStorage.setItem("token", data.access_token);
     localStorage.setItem("username", data.username);
     localStorage.setItem("role", data.role);
+    localStorage.setItem("must_change_password", data.must_change_password ? "true" : "false");
 
     window.location.href = "dashboard.html";
 

@@ -86,6 +86,11 @@ class User(Base):
         default="officer"
     )
 
+    must_change_password = Column(
+        Boolean,
+        default=False
+    )
+
     created_at = Column(
         DateTime,
         server_default=func.now()

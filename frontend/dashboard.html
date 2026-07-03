@@ -87,14 +87,13 @@
   <div class="modal-overlay" id="scanModal">
     <div class="modal-box" style="width: 480px;">
       <h2>Scan Folder</h2>
-      <div class="field-group" style="margin-bottom: 18px;">
-        <label>Root Folder Path</label>
-        <div id="scanFolderPickerDropzone" style="width: 100%; padding: 10px; background: #0f1419; border: 1px dashed #2a3441; border-radius: 6px; display: flex; align-items: center; cursor: pointer;">
-          <button type="button" id="browseFolderBtn" style="background: #f1f1f1; color: #121212; border: 1px solid #767676; border-radius: 4px; padding: 4px 10px; font-size: 13px; font-weight: 500; cursor: pointer; margin-right: 10px;">Choose Folder</button>
-          <span id="scanFolderPickerPath" style="color: #b0b8c4; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; flex: 1;">No folder chosen</span>
+      <div class="field-group" style="margin-bottom: 18px; text-align: left;">
+        <label style="display:block; margin-bottom:6px; font-size:12px; color:#8a93a3;">Root Folder Path</label>
+        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+          <input type="text" id="scanPathInput" placeholder="e.g. C:\Cases or E:\CaseData" style="flex: 1; background: #0f1419; border: 1px solid #2a3441; color: #e8eaed; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
+          <button type="button" id="browseFolderBtn" class="btn-secondary" style="white-space: nowrap; padding: 8px 12px; font-size: 13px;">Choose Folder</button>
         </div>
-        <!-- Hidden input to store the actual path value for scanning -->
-        <input type="hidden" id="scanPathInput" value="">
+        <div style="font-size: 11px; color: #8a93a3;">Click "Choose Folder" to select via file browser or paste full path above.</div>
       </div>
 
       <div id="scanResults" class="scan-results" style="display:none;">
@@ -133,12 +132,15 @@
   <div class="modal-overlay" id="changePasswordModal">
     <div class="modal-box">
       <h2>Change Password</h2>
+      <div id="forcePasswordNotice" style="display:none; background:#3b2d12; color:#fbbf24; border:1px solid #78350f; padding:10px; border-radius:6px; font-size:12px; margin-top:10px; margin-bottom:10px; text-align:left;">
+        ⚠️ <strong>Security Alert:</strong> You are using default credentials. You must change your password before continuing.
+      </div>
       <div class="field-group" style="margin-top: 15px; margin-bottom: 12px; text-align: left;">
         <label style="display:block; margin-bottom:6px; font-size:12px; color:#8a93a3;">Current Password</label>
         <input type="password" id="currentPasswordInput" style="width:100%; background:#0f1419; border:1px solid #2a3441; color:#e8eaed; padding:10px 12px; border-radius:6px;">
       </div>
       <div class="field-group" style="margin-bottom: 18px; text-align: left;">
-        <label style="display:block; margin-bottom:6px; font-size:12px; color:#8a93a3;">New Password</label>
+        <label style="display:block; margin-bottom:6px; font-size:12px; color:#8a93a3;">New Password (min 6 characters)</label>
         <input type="password" id="newPasswordInput" style="width:100%; background:#0f1419; border:1px solid #2a3441; color:#e8eaed; padding:10px 12px; border-radius:6px;">
       </div>
       <div class="upload-status" id="changePasswordStatus"></div>

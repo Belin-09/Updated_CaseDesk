@@ -17,40 +17,48 @@ let searchDebounce;
 // ── Load cases ───────────────────────────────────────────────────────────
 
 async function loadCases() {
-  const params = new URLSearchParams({
-    page: currentPage,
-    page_size: pageSize,
-    sort_by: sortBy.value,
-    order: sortOrder.value,
-  });
+  try {
+    const params = new URLSearchParams({
+      page: currentPage,
+      page_size: pageSize,
+      sort_by: sortBy.value,
+      order: sortOrder.value,
+    });
 
-  if (searchInput.value.trim()) params.append("search", searchInput.value.trim());
-  if (caseSearchInput.value.trim()) params.append("case_search", caseSearchInput.value.trim());
-  if (statusFilter.value) params.append("status", statusFilter.value);
+    if (searchInput.value.trim()) params.append("search", searchInput.value.trim());
+    if (caseSearchInput.value.trim()) params.append("case_search", caseSearchInput.value.trim());
+    if (statusFilter.value) params.append("status", statusFilter.value);
 
-  const response = await apiFetch(`/cases/?${params.toString()}`);
-  if (!response) return;
+    const response = await apiFetch(`/cases/?${params.toString()}`);
+    if (!response || !response.ok) {
+      totalCount.textContent = "Error loading cases";
+      return;
+    }
 
-  const data = await response.json();
+    const data = await response.json();
 
-  const isSearchActive = !!searchInput.value.trim();
-  if (isSearchActive) {
-    const hits = data.total_hits || 0;
-    totalCount.innerHTML = `<span class="search-summary-highlight">${hits} hit${hits !== 1 ? "s" : ""}</span> across <span class="search-summary-highlight">${data.total} case${data.total !== 1 ? "s" : ""}</span> found`;
-  } else {
-    totalCount.innerHTML = `${data.total} case${data.total !== 1 ? "s" : ""} found`;
+    const isSearchActive = !!searchInput.value.trim();
+    if (isSearchActive) {
+      const hits = data.total_hits || 0;
+      totalCount.innerHTML = `<span class="search-summary-highlight">${hits} hit${hits !== 1 ? "s" : ""}</span> across <span class="search-summary-highlight">${data.total} case${data.total !== 1 ? "s" : ""}</span> found`;
+    } else {
+      totalCount.innerHTML = `${data.total} case${data.total !== 1 ? "s" : ""} found`;
+    }
+
+    if (!data.cases || data.cases.length === 0) {
+      caseGrid.innerHTML = "";
+      emptyState.style.display = "block";
+      pagination.innerHTML = "";
+      return;
+    }
+
+    emptyState.style.display = "none";
+    renderCases(data.cases);
+    renderPagination(data.total_pages, data.page);
+  } catch (err) {
+    console.error("Failed to load cases:", err);
+    totalCount.textContent = "Error loading cases";
   }
-
-  if (data.cases.length === 0) {
-    caseGrid.innerHTML = "";
-    emptyState.style.display = "block";
-    pagination.innerHTML = "";
-    return;
-  }
-
-  emptyState.style.display = "none";
-  renderCases(data.cases);
-  renderPagination(data.total_pages, data.page);
 }
 
 // ── Render cards ─────────────────────────────────────────────────────────
@@ -289,8 +297,6 @@ const cancelScanBtn = document.getElementById("cancelScanBtn");
 const confirmScanBtn = document.getElementById("confirmScanBtn");
 const scanPathInput = document.getElementById("scanPathInput");
 const browseFolderBtn = document.getElementById("browseFolderBtn");
-const scanFolderPickerDropzone = document.getElementById("scanFolderPickerDropzone");
-const scanFolderPickerPath = document.getElementById("scanFolderPickerPath");
 const scanResults = document.getElementById("scanResults");
 const scanStatus = document.getElementById("scanStatus");
 const scanItemList = document.getElementById("scanItemList");
@@ -300,19 +306,10 @@ scanFolderBtn.addEventListener("click", () => {
   scanResults.style.display = "none";
   scanStatus.classList.remove("show", "success", "error");
   scanPathInput.value = "";
-  scanFolderPickerPath.textContent = "No folder chosen";
-  scanFolderPickerPath.style.color = "#b0b8c4";
-});
-
-// Click forwarding for dashed container
-scanFolderPickerDropzone.addEventListener("click", (e) => {
-  if (e.target !== browseFolderBtn && !browseFolderBtn.disabled) {
-    browseFolderBtn.click();
-  }
 });
 
 browseFolderBtn.addEventListener("click", async (e) => {
-  e.stopPropagation(); // prevent infinite loop from dropzone click forward
+  e.stopPropagation();
   browseFolderBtn.disabled = true;
   const originalText = browseFolderBtn.textContent;
   browseFolderBtn.textContent = "Opening...";
@@ -325,12 +322,13 @@ browseFolderBtn.addEventListener("click", async (e) => {
       const data = await response.json();
       if (data.folder_path) {
         scanPathInput.value = data.folder_path;
-        scanFolderPickerPath.textContent = data.folder_path;
-        scanFolderPickerPath.style.color = "#e8eaed"; // change path to white to highlight
+      } else if (data.message) {
+        showScanStatus(data.message, "error");
       }
     }
   } catch (error) {
     console.error("Folder selector failed:", error);
+    showScanStatus("Folder picker unavailable. Please type or paste folder path manually.", "error");
   } finally {
     browseFolderBtn.disabled = false;
     browseFolderBtn.textContent = originalText;
@@ -462,16 +460,31 @@ const confirmChangePasswordBtn = document.getElementById("confirmChangePasswordB
 const currentPasswordInput = document.getElementById("currentPasswordInput");
 const newPasswordInput = document.getElementById("newPasswordInput");
 const changePasswordStatus = document.getElementById("changePasswordStatus");
+const forcePasswordNotice = document.getElementById("forcePasswordNotice");
+
+function checkForcePasswordChange() {
+  if (localStorage.getItem("must_change_password") === "true") {
+    changePasswordModal.classList.add("show");
+    if (forcePasswordNotice) forcePasswordNotice.style.display = "block";
+    if (cancelChangePasswordBtn) cancelChangePasswordBtn.style.display = "none";
+  } else {
+    if (forcePasswordNotice) forcePasswordNotice.style.display = "none";
+    if (cancelChangePasswordBtn) cancelChangePasswordBtn.style.display = "inline-block";
+  }
+}
 
 changePasswordBtn.addEventListener("click", () => {
   changePasswordModal.classList.add("show");
   changePasswordStatus.classList.remove("show", "success", "error");
   currentPasswordInput.value = "";
   newPasswordInput.value = "";
+  checkForcePasswordChange();
 });
 
 cancelChangePasswordBtn.addEventListener("click", () => {
-  changePasswordModal.classList.remove("show");
+  if (localStorage.getItem("must_change_password") !== "true") {
+    changePasswordModal.classList.remove("show");
+  }
 });
 
 confirmChangePasswordBtn.addEventListener("click", async () => {
@@ -479,6 +492,11 @@ confirmChangePasswordBtn.addEventListener("click", async () => {
   const new_password = newPasswordInput.value;
   if (!current_password || !new_password) {
     showStatusMsg(changePasswordStatus, "Please fill in all fields", "error");
+    return;
+  }
+
+  if (new_password.length < 6) {
+    showStatusMsg(changePasswordStatus, "New password must be at least 6 characters long", "error");
     return;
   }
 
@@ -495,6 +513,10 @@ confirmChangePasswordBtn.addEventListener("click", async () => {
     const data = await response.json();
     if (!response.ok) throw new Error(data.detail || "Failed to change password");
 
+    localStorage.setItem("must_change_password", "false");
+    if (forcePasswordNotice) forcePasswordNotice.style.display = "none";
+    if (cancelChangePasswordBtn) cancelChangePasswordBtn.style.display = "inline-block";
+
     showStatusMsg(changePasswordStatus, "Password changed successfully!", "success");
     setTimeout(() => {
       changePasswordModal.classList.remove("show");
@@ -506,6 +528,9 @@ confirmChangePasswordBtn.addEventListener("click", async () => {
     confirmChangePasswordBtn.textContent = "Change Password";
   }
 });
+
+// Auto-check on dashboard load
+checkForcePasswordChange();
 
 // ── User Management Modal Elements ───────────────────────────────────────
 const userMgmtModal = document.getElementById("userMgmtModal");
@@ -560,6 +585,11 @@ createUserBtn.addEventListener("click", async () => {
 
   if (!username || !password || !role) {
     showStatusMsg(createUserStatus, "Please fill in all fields", "error");
+    return;
+  }
+
+  if (password.length < 6) {
+    showStatusMsg(createUserStatus, "Password must be at least 6 characters long", "error");
     return;
   }
 

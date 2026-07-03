@@ -438,20 +438,23 @@ def get_scan_status(current_user=Depends(get_current_user)):
 def select_folder(current_user=Depends(get_current_user)):
     """
     Open a native directory dialog on the server's local machine (since the app runs locally).
-    Returns the selected folder path.
+    Returns the selected folder path, or null if cancelled / unsupported.
     """
-    import tkinter as tk
-    from tkinter import filedialog
-    
     try:
+        import tkinter as tk
+        from tkinter import filedialog
+        
         root = tk.Tk()
-        root.withdraw()  # Hide the main tkinter window
-        root.attributes("-topmost", True)  # Bring dialog to the front
+        root.withdraw()  # Hide main window
+        root.attributes("-topmost", True)
         folder_path = filedialog.askdirectory(parent=root, title="Select Cases Root Folder")
         root.destroy()
         
-        return {"folder_path": folder_path if folder_path else None}
+        return {"folder_path": folder_path if folder_path else None, "success": True}
     except Exception as e:
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=f"Failed to open folder picker: {str(e)}")
+        print(f"Tkinter folder picker warning: {e}")
+        return {
+            "folder_path": None,
+            "success": False,
+            "message": "Native folder picker is unavailable. Please enter or paste the folder path manually."
+        }

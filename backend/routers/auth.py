@@ -9,6 +9,14 @@ from pydantic import BaseModel
 router = APIRouter(prefix="/auth", tags=["Auth"])
 
 
+def validate_password(password: str):
+    if not password or len(password) < 6:
+        raise HTTPException(
+            status_code=400,
+            detail="Password must be at least 6 characters long"
+        )
+
+
 # --- Schemas (inline for now) ---
 
 class RegisterRequest(BaseModel):
@@ -27,6 +35,7 @@ class TokenResponse(BaseModel):
     token_type: str
     username: str
     role: str
+    must_change_password: bool = False
 
 
 # --- Register ---
@@ -37,6 +46,7 @@ def register(
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_role("admin"))
 ):
+    validate_password(payload.password)
     existing = db.query(User).filter(User.username == payload.username).first()
     if existing:
         raise HTTPException(
@@ -53,7 +63,8 @@ def register(
     user = User(
         username=payload.username,
         hashed_password=hash_password(payload.password),
-        role=payload.role
+        role=payload.role,
+        must_change_password=False
     )
     db.add(user)
     db.commit()
@@ -80,6 +91,7 @@ def create_user(
     db: Session = Depends(get_db),
     admin_user: User = Depends(require_role("admin"))
 ):
+    validate_password(payload.password)
     existing = db.query(User).filter(User.username == payload.username).first()
     if existing:
         raise HTTPException(
@@ -96,7 +108,8 @@ def create_user(
     user = User(
         username=payload.username,
         hashed_password=hash_password(payload.password),
-        role=payload.role
+        role=payload.role,
+        must_change_password=False
     )
     db.add(user)
     db.commit()
@@ -142,6 +155,7 @@ def change_password(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    validate_password(payload.new_password)
     if not verify_password(payload.current_password, current_user.hashed_password):
         raise HTTPException(
             status_code=400,
@@ -149,6 +163,7 @@ def change_password(
         )
 
     current_user.hashed_password = hash_password(payload.new_password)
+    current_user.must_change_password = False
     db.commit()
 
     # Audit log
@@ -190,7 +205,8 @@ def login(
         "access_token": token,
         "token_type": "bearer",
         "username": user.username,
-        "role": user.role
+        "role": user.role,
+        "must_change_password": bool(user.must_change_password)
     }
 
 
