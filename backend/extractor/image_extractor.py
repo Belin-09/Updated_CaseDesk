@@ -1,10 +1,11 @@
 import pytesseract
 from PIL import Image, ImageEnhance
 
+import os
 from dotenv import load_dotenv
 load_dotenv()
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+pytesseract.pytesseract.tesseract_cmd = os.getenv("TESSERACT_PATH")
 
 
 def preprocess_image(image: Image.Image) -> Image.Image:
