@@ -71,46 +71,54 @@ def list_cases(
     # Search strictly by folder name, file name, or ID
     if case_search:
         cs_term = case_search.strip()
-        cs_tokens = [t.strip() for t in re.split(r'[\s\-]+', cs_term) if t.strip()]
-        if cs_tokens:
-            token_match_conditions = []
-            for t in cs_tokens:
-                token_match_conditions.append(
-                    or_(
-                        Case.case_name.ilike(f"%{t}%"),
-                        Case.file_name.ilike(f"%{t}%")
-                    )
+        if re.match(r'^#\d+$', cs_term):
+            digits = int(re.sub(r'\D', '', cs_term))
+            query = query.filter(Case.id == digits)
+        else:
+            w = re.sub(r'[\s\-]+', '%', cs_term)
+            p_full = '%' + w + '%'
+            p_bound1 = '%' + w + '-%'
+            p_bound2 = '%' + w + ' %'
+
+            if re.search(r'\d{4}', cs_term):
+                pattern_cond = or_(
+                    Case.case_name.ilike(p_full), Case.file_name.ilike(p_full)
                 )
-            and_condition = and_(*token_match_conditions)
-            
-            if cs_term.isdigit() or re.match(r'^#?\d+$', cs_term):
-                digits = re.sub(r'\D', '', cs_term)
-                query = query.filter(or_(Case.id == int(digits), and_condition))
             else:
-                query = query.filter(and_condition)
+                pattern_cond = or_(
+                    Case.case_name.ilike(p_bound1), Case.file_name.ilike(p_bound1),
+                    Case.case_name.ilike(p_bound2), Case.file_name.ilike(p_bound2),
+                    Case.case_name.ilike(f"%{cs_term}"), Case.file_name.ilike(f"%{cs_term}")
+                )
+
+            if cs_term.isdigit():
+                query = query.filter(or_(Case.id == int(cs_term), pattern_cond))
+            else:
+                query = query.filter(pattern_cond)
 
     # Search across multiple fields using token-based AND matching
     if search:
         search_term = search.strip()
-        # Split search query by space or hyphen to enforce logical AND search
-        tokens = [t.strip() for t in re.split(r'[\s\-]+', search_term) if t.strip()]
-        
-        if tokens:
-            # Check if searching for a case folder name pattern (e.g. "Case No-12" or "Case 12")
-            is_case_name_search = bool(re.match(r'^case\s*(?:no)?[\s\-]*\d+', search_term.lower()))
-            
-            token_conditions = []
-            for t in tokens:
-                if is_case_name_search:
-                    # Restrict matching to case_name and file_name only
-                    token_conditions.append(
-                        or_(
-                            Case.case_name.ilike(f"%{t}%"),
-                            Case.file_name.ilike(f"%{t}%")
-                        )
-                    )
-                else:
-                    # Search across all fields
+        # Check if searching for a case folder name pattern (e.g. "Case No-12" or "Case 12")
+        if re.match(r'^case\s*(?:no)?[\s\-]*\d+', search_term.lower()):
+            w = re.sub(r'[\s\-]+', '%', search_term)
+            p_full = '%' + w + '%'
+            p_bound1 = '%' + w + '-%'
+            p_bound2 = '%' + w + ' %'
+
+            if re.search(r'\d{4}', search_term):
+                query = query.filter(or_(Case.case_name.ilike(p_full), Case.file_name.ilike(p_full)))
+            else:
+                query = query.filter(or_(
+                    Case.case_name.ilike(p_bound1), Case.file_name.ilike(p_bound1),
+                    Case.case_name.ilike(p_bound2), Case.file_name.ilike(p_bound2),
+                    Case.case_name.ilike(f"%{search_term}"), Case.file_name.ilike(f"%{search_term}")
+                ))
+        else:
+            tokens = [t.strip() for t in re.split(r'[\s\-]+', search_term) if t.strip()]
+            if tokens:
+                token_conditions = []
+                for t in tokens:
                     token_conditions.append(
                         or_(
                             Case.case_name.ilike(f"%{t}%"),
@@ -124,7 +132,7 @@ def list_cases(
                             Case.raw_text.ilike(f"%{t}%"),
                         )
                     )
-            query = query.filter(and_(*token_conditions))
+                query = query.filter(and_(*token_conditions))
 
     # Filters
     if status:

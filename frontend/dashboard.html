@@ -27,6 +27,19 @@
   </nav>
 
   <div class="page-container">
+    <div id="activeScanBanner" class="active-scan-banner" style="display:none; background: rgba(14, 165, 233, 0.12); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 8px; padding: 12px 18px; margin-bottom: 20px; font-size: 13px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px;">
+            <span class="pulse-dot" style="width:8px; height:8px; background:#38bdf8; border-radius:50%; display:inline-block;"></span>
+            Background Scan in Progress:
+          </span>
+          <span id="bannerScanProgress" style="color:#e8eaed;">Processed 0 of 0...</span>
+        </div>
+        <button class="btn-secondary" id="openScanModalBannerBtn" style="padding:4px 12px; font-size:12px;">View Progress Details</button>
+      </div>
+    </div>
+
     <div class="page-header">
       <div>
         <div class="page-title">Cases</div>

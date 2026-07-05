@@ -7,12 +7,26 @@ from datetime import datetime
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".jpg", ".jpeg", ".png"}
 
 
+def is_container_dir(path: str) -> bool:
+    """Check if directory contains subdirectories that are year containers or case folders."""
+    try:
+        for entry in os.scandir(path):
+            if entry.is_dir():
+                name_lower = entry.name.lower()
+                if entry.name.isdigit() or name_lower.startswith("case") or "case" in name_lower:
+                    return True
+    except Exception:
+        pass
+    return False
+
+
 def get_case_folders(root_path: str) -> list[dict]:
     """
     Walk the root path and find all case folders and standalone files.
-    Structure:
-    - Root level: root/some_file.pdf
-    - Year level: root/year/some_file.pdf or root/year/Case Folder/
+    Smart depth-agnostic scanning:
+    - Root level: E:\\case_data -> scans sub-containers (2025, 2026) + standalone files
+    - Year level: E:\\cases\\2026 -> scans all case folders in 2026
+    - Single folder: E:\\cases\\2026\\Case No-01-2026 -> scans single case folder
     Returns list of {case_name, case_path, is_file}
     """
     case_folders = []
@@ -20,32 +34,61 @@ def get_case_folders(root_path: str) -> list[dict]:
     if not os.path.exists(root_path):
         raise ValueError(f"Root path does not exist: {root_path}")
 
-    # Walk two levels deep: year/ -> case folder/ or standalone files
-    for year_entry in os.scandir(root_path):
-        if year_entry.is_file():
-            ext = os.path.splitext(year_entry.name)[1].lower()
-            if ext in {".pdf", ".docx", ".jpg", ".jpeg", ".png"}:
+    # Single standalone file selected
+    if os.path.isfile(root_path):
+        ext = os.path.splitext(root_path)[1].lower()
+        if ext in SUPPORTED_EXTENSIONS:
+            case_folders.append({
+                "case_name": os.path.basename(root_path),
+                "case_path": root_path,
+                "is_file": True
+            })
+        return case_folders
+
+    # Check if root_path is a single case folder (not a container)
+    if not is_container_dir(root_path):
+        case_folders.append({
+            "case_name": os.path.basename(root_path),
+            "case_path": root_path,
+            "is_file": False
+        })
+        return case_folders
+
+    # Otherwise root_path is a container directory
+    for entry in os.scandir(root_path):
+        if entry.is_file():
+            ext = os.path.splitext(entry.name)[1].lower()
+            if ext in SUPPORTED_EXTENSIONS:
                 case_folders.append({
-                    "case_name": year_entry.name,
-                    "case_path": year_entry.path,
+                    "case_name": entry.name,
+                    "case_path": entry.path,
                     "is_file": True
                 })
-        elif year_entry.is_dir():
-            for case_entry in os.scandir(year_entry.path):
-                if case_entry.is_file():
-                    ext = os.path.splitext(case_entry.name)[1].lower()
-                    if ext in {".pdf", ".docx", ".jpg", ".jpeg", ".png"}:
+        elif entry.is_dir():
+            if is_container_dir(entry.path):
+                # entry is a year container (e.g. 2026), dive 1 level deep
+                for case_entry in os.scandir(entry.path):
+                    if case_entry.is_file():
+                        ext = os.path.splitext(case_entry.name)[1].lower()
+                        if ext in SUPPORTED_EXTENSIONS:
+                            case_folders.append({
+                                "case_name": case_entry.name,
+                                "case_path": case_entry.path,
+                                "is_file": True
+                            })
+                    elif case_entry.is_dir():
                         case_folders.append({
                             "case_name": case_entry.name,
                             "case_path": case_entry.path,
-                            "is_file": True
+                            "is_file": False
                         })
-                elif case_entry.is_dir():
-                    case_folders.append({
-                        "case_name": case_entry.name,
-                        "case_path": case_entry.path,
-                        "is_file": False
-                    })
+            else:
+                # entry is a case folder (e.g. Case No-01-2026)
+                case_folders.append({
+                    "case_name": entry.name,
+                    "case_path": entry.path,
+                    "is_file": False
+                })
 
     return case_folders
 

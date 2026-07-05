@@ -405,11 +405,33 @@ async function pollScanStatus() {
 
     scanResults.style.display = "block";
 
+    if (activeScanBanner) {
+      if (state.active || state.status === "running") {
+        activeScanBanner.style.display = "block";
+        if (bannerScanProgress) {
+          bannerScanProgress.textContent = state.total > 0
+            ? `Processed ${state.processed + state.skipped + state.reprocessed + state.failed} of ${state.total}${state.current_case ? ` (currently: ${state.current_case})` : ''}`
+            : "Scanning...";
+        }
+      }
+    }
+
     if (state.status === "completed" || state.status === "failed") {
       clearInterval(pollInterval);
 
       confirmScanBtn.disabled = false;
       confirmScanBtn.textContent = "Scan";
+
+      if (activeScanBanner) {
+        if (bannerScanProgress) {
+          bannerScanProgress.textContent = state.status === "completed" 
+            ? `Scan completed! ${state.processed} processed, ${state.reprocessed} reprocessed, ${state.skipped} skipped.`
+            : `Scan failed: ${state.error}`;
+        }
+        setTimeout(() => {
+          activeScanBanner.style.display = "none";
+        }, 5000);
+      }
 
       if (state.status === "completed") {
         showScanStatus(
@@ -435,6 +457,31 @@ function showScanStatus(message, type) {
   scanStatus.className = `upload-status show ${type}`;
 }
 
+// ── Active Scan Banner Elements & Controls ───────────────────────────────
+const activeScanBanner = document.getElementById("activeScanBanner");
+const bannerScanProgress = document.getElementById("bannerScanProgress");
+const openScanModalBannerBtn = document.getElementById("openScanModalBannerBtn");
+
+if (openScanModalBannerBtn) {
+  openScanModalBannerBtn.addEventListener("click", () => {
+    scanModal.classList.add("show");
+  });
+}
+
+async function checkBackgroundScanOnLoad() {
+  try {
+    const response = await apiFetch("/upload/scan-status");
+    if (!response || !response.ok) return;
+    const state = await response.json();
+    if (state.active || state.status === "running") {
+      if (activeScanBanner) activeScanBanner.style.display = "block";
+      pollScanStatus();
+    }
+  } catch (err) {
+    console.error("Failed to check scan status on load:", err);
+  }
+}
+
 // ── Init ─────────────────────────────────────────────────────────────────
 
 const urlParams = new URLSearchParams(window.location.search);
@@ -444,6 +491,7 @@ if (initialSearch) {
 }
 
 loadCases();
+checkBackgroundScanOnLoad();
 
 // ── User Role and Navigation buttons visibility ───────────────────────────
 const role = localStorage.getItem("role") || "officer";
