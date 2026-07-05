@@ -126,6 +126,15 @@ function renderTabs(files, caseRawText, mainFileName, caseId) {
   }
 
   tabsContainer.style.display = "flex";
+  if (!tabsContainer.dataset.wheelBound) {
+    tabsContainer.dataset.wheelBound = "true";
+    tabsContainer.addEventListener("wheel", (evt) => {
+      if (evt.deltaY !== 0) {
+        evt.preventDefault();
+        tabsContainer.scrollLeft += evt.deltaY;
+      }
+    }, { passive: false });
+  }
   tabsContainer.innerHTML = docs.map((f, index) => {
     // Count hits in this particular file dynamically
     let fileHits = 0;
