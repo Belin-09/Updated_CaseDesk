@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CaseDesk — Case Detail</title>
-  <link rel="stylesheet" href="assets/style.css?v=1.7">
+  <link rel="stylesheet" href="assets/style.css?v=2.2">
 </head>
 <body>
 
@@ -12,9 +12,10 @@
     <div class="navbar-left">
       <div class="navbar-logo">CaseDesk</div>
       <div class="navbar-links">
-        <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="dashboard.html">Dashboard</a>
+        <a href="cases.html" class="active">Cases</a>
         <a href="review.html">Review Queue</a>
-        <a href="analytics.html">Analytics</a>
+        <a href="timeline.html">Timeline</a>
       </div>
     </div>
     <div class="navbar-right">
@@ -24,12 +25,15 @@
   </nav>
 
   <div class="page-container">
-    <a href="dashboard.html" class="back-link">← Back to Dashboard</a>
+    <a href="cases.html" class="back-link">← Back to Cases</a>
 
     <div class="page-header">
       <div>
         <div class="page-title" id="caseTitle">Loading...</div>
         <div class="page-subtitle" id="caseSubtitle"></div>
+      </div>
+      <div style="display:flex; gap:10px; align-items: center;">
+        <button class="btn-secondary" id="reprocessBtn">🔄 Reprocess Fields</button>
       </div>
     </div>
 
@@ -38,50 +42,52 @@
       <div>
         <div class="detail-card">
           <h3>Case Fields</h3>
+          
           <div class="field-row">
             <div class="field-group">
-              <label>Officer</label>
-              <input type="text" id="f_officer">
+              <label>Analyst</label>
+              <input type="text" id="f_analyst">
             </div>
             <div class="field-group">
-              <label>Date</label>
-              <input type="text" id="f_date">
+              <label>Investigating Officer</label>
+              <input type="text" id="f_investigating_officer">
             </div>
           </div>
-          <div class="field-row">
+          
+          <h4 style="margin: 20px 0 10px 0; color: #4f9cff; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #2a3441; padding-bottom: 6px;">Case Pertains to</h4>
+          <div class="field-row" style="grid-template-columns: repeat(3, 1fr);">
             <div class="field-group">
-              <label>Location</label>
-              <input type="text" id="f_location">
+              <label>Service No</label>
+              <input type="text" id="f_pertains_service_no">
             </div>
             <div class="field-group">
-              <label>Incident Type</label>
-              <input type="text" id="f_incident_type">
+              <label>Name</label>
+              <input type="text" id="f_pertains_name">
+            </div>
+            <div class="field-group">
+              <label>Unit</label>
+              <input type="text" id="f_pertains_unit">
             </div>
           </div>
-          <div class="field-row">
+          
+          <h4 style="margin: 20px 0 10px 0; color: #4f9cff; font-size: 13px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid #2a3441; padding-bottom: 6px;">Dates</h4>
+          <div class="field-row" style="grid-template-columns: repeat(3, 1fr);">
             <div class="field-group">
-              <label>Complainant</label>
-              <input type="text" id="f_complainant">
+              <label>Receiving Date</label>
+              <input type="text" id="f_date_receiving">
             </div>
             <div class="field-group">
-              <label>Suspect</label>
-              <input type="text" id="f_suspect">
+              <label>Date of Completion</label>
+              <input type="text" id="f_date_completion">
+            </div>
+            <div class="field-group">
+              <label>Date of Dispatch</label>
+              <input type="text" id="f_date_dispatch">
             </div>
           </div>
-          <div class="field-row">
-            <div class="field-group" style="grid-column: span 2;">
-              <label>Evidence</label>
-              <textarea id="f_evidence"></textarea>
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field-group" style="grid-column: span 2;">
-              <label>Notes</label>
-              <textarea id="f_notes"></textarea>
-            </div>
-          </div>
-          <div class="field-row">
-            <div class="field-group">
+
+          <div class="field-row" style="margin-top: 15px;">
+            <div class="field-group" style="max-width: 250px;">
               <label>Status</label>
               <select id="f_status">
                 <option value="open">Open</option>

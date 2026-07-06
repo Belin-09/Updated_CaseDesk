@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CaseDesk — Dashboard</title>
-  <link rel="stylesheet" href="assets/style.css?v=1.7">
+  <link rel="stylesheet" href="assets/style.css?v=2.0">
+  <script src="assets/chart.umd.min.js"></script>
 </head>
 <body>
 
@@ -13,8 +14,8 @@
       <div class="navbar-logo">CaseDesk</div>
       <div class="navbar-links">
         <a href="dashboard.html" class="active">Dashboard</a>
+        <a href="cases.html">Cases</a>
         <a href="review.html">Review Queue</a>
-        <a href="analytics.html">Analytics</a>
         <a href="timeline.html">Timeline</a>
       </div>
     </div>
@@ -27,119 +28,48 @@
   </nav>
 
   <div class="page-container">
-    <div id="activeScanBanner" class="active-scan-banner" style="display:none; background: rgba(14, 165, 233, 0.12); border: 1px solid rgba(14, 165, 233, 0.3); border-radius: 8px; padding: 12px 18px; margin-bottom: 20px; font-size: 13px;">
-      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px;">
-        <div style="display:flex; align-items:center; gap:8px;">
-          <span style="font-weight:700; color:#38bdf8; display:flex; align-items:center; gap:6px;">
-            <span class="pulse-dot" style="width:8px; height:8px; background:#38bdf8; border-radius:50%; display:inline-block;"></span>
-            Background Scan in Progress:
-          </span>
-          <span id="bannerScanProgress" style="color:#e8eaed;">Processed 0 of 0...</span>
-        </div>
-        <button class="btn-secondary" id="openScanModalBannerBtn" style="padding:4px 12px; font-size:12px;">View Progress Details</button>
-      </div>
-    </div>
-
     <div class="page-header">
       <div>
-        <div class="page-title">Cases</div>
-        <div class="page-subtitle" id="totalCount">Loading...</div>
-      </div>
-      <div style="display:flex; gap:10px;">
-        <button class="btn-secondary" id="scanFolderBtn">📁 Scan Folder</button>
-        <button class="btn-primary" id="uploadBtn">+ Upload Document</button>
+        <div class="page-title">Dashboard</div>
+        <div class="page-subtitle">System Overview and Case Analytics</div>
       </div>
     </div>
 
-    <div class="toolbar">
-      <input type="text" id="searchInput" placeholder="Search keywords, officer, location..." style="flex: 2;">
-      <input type="text" id="caseSearchInput" placeholder="Search Case No / File Name / ID..." style="flex: 1.2; min-width: 180px;">
-      <select id="statusFilter">
-        <option value="">All Status</option>
-        <option value="open">Open</option>
-        <option value="closed">Closed</option>
-        <option value="pending">Pending</option>
-      </select>
-      <select id="sortBy">
-        <option value="created_at">Date Created</option>
-        <option value="date">Incident Date</option>
-        <option value="officer">Officer</option>
-        <option value="status">Status</option>
-      </select>
-      <select id="sortOrder">
-        <option value="desc">Descending</option>
-        <option value="asc">Ascending</option>
-      </select>
-    </div>
-
-    <div id="caseGrid" class="case-grid"></div>
-
-    <div id="emptyState" class="empty-state" style="display:none;">
-      <div class="empty-state-icon">📂</div>
-      <div>No cases found</div>
-    </div>
-
-    <div class="pagination" id="pagination"></div>
-  </div>
-
-  <!-- Upload Modal -->
-  <div class="modal-overlay" id="uploadModal">
-    <div class="modal-box">
-      <h2>Upload Document</h2>
-      <input type="file" id="fileInput" accept=".pdf,.docx,.jpg,.jpeg,.png">
-      <div class="upload-status" id="uploadStatus"></div>
-      <div class="modal-actions">
-        <button class="btn-secondary" id="cancelUploadBtn">Cancel</button>
-        <button class="btn-primary" id="confirmUploadBtn">Upload</button>
-      </div>
-    </div>
-  </div>
-
-
-  <!-- Scan Folder Modal -->
-  <div class="modal-overlay" id="scanModal">
-    <div class="modal-box" style="width: 480px;">
-      <h2>Scan Folder</h2>
-      <div class="field-group" style="margin-bottom: 18px; text-align: left;">
-        <label style="display:block; margin-bottom:6px; font-size:12px; color:#8a93a3;">Root Folder Path</label>
-        <div style="display: flex; gap: 8px; margin-bottom: 8px;">
-          <input type="text" id="scanPathInput" placeholder="e.g. C:\Cases or E:\CaseData" style="flex: 1; background: #0f1419; border: 1px solid #2a3441; color: #e8eaed; padding: 8px 12px; border-radius: 6px; font-size: 13px;">
-          <button type="button" id="browseFolderBtn" class="btn-secondary" style="white-space: nowrap; padding: 8px 12px; font-size: 13px;">Choose Folder</button>
+    <!-- Charts Grid (2x2 Layout) -->
+    <div class="charts-grid">
+      <div class="chart-card">
+        <h3>📊 1. Number of Cases per Year</h3>
+        <div class="chart-container">
+          <canvas id="casesPerYearChart"></canvas>
         </div>
-        <div style="font-size: 11px; color: #8a93a3;">Click "Choose Folder" to select via file browser or paste full path above.</div>
       </div>
 
-      <div id="scanResults" class="scan-results" style="display:none;">
-        <div class="scan-summary">
-          <div class="scan-stat processed">
-            <div class="num" id="scanProcessed">0</div>
-            <div class="label">Processed</div>
-          </div>
-          <div class="scan-stat skipped">
-            <div class="num" id="scanSkipped">0</div>
-            <div class="label">Skipped</div>
-          </div>
-          <div class="scan-stat reprocessed">
-            <div class="num" id="scanReprocessed">0</div>
-            <div class="label">Reprocessed</div>
-          </div>
-          <div class="scan-stat failed">
-            <div class="num" id="scanFailed">0</div>
-            <div class="label">Failed</div>
+      <div class="chart-card">
+        <h3>📱 2. Suspected PIO Numbers per Year</h3>
+        <div class="chart-container">
+          <canvas id="suspectedPioChart"></canvas>
+        </div>
+      </div>
+
+      <div class="chart-card">
+        <h3>🛡️ 3. Cases per Command per Year</h3>
+        <div class="chart-container">
+          <div class="chart-scroll-inner" id="casesByCommandWrapper" style="height: 100%; min-width: 100%;">
+            <canvas id="casesByCommandChart"></canvas>
           </div>
         </div>
-        <div id="scanItemList"></div>
       </div>
 
-      <div class="upload-status" id="scanStatus"></div>
-
-      <div class="modal-actions">
-        <button class="btn-secondary" id="cancelScanBtn">Close</button>
-        <button class="btn-primary" id="confirmScanBtn">Scan</button>
+      <div class="chart-card">
+        <h3>📂 4. Cases per Type per Year</h3>
+        <div class="chart-container">
+          <div class="chart-scroll-inner" id="casesByTypeWrapper" style="height: 100%; min-width: 100%;">
+            <canvas id="casesByTypeChart"></canvas>
+          </div>
+        </div>
       </div>
     </div>
   </div>
-
 
   <!-- Change Password Modal -->
   <div class="modal-overlay" id="changePasswordModal">
@@ -163,7 +93,6 @@
       </div>
     </div>
   </div>
-
 
   <!-- User Management Modal -->
   <div class="modal-overlay" id="userMgmtModal">
@@ -209,9 +138,240 @@
     </div>
   </div>
 
+  <!-- PIO Numbers Modal -->
+  <div class="modal-overlay" id="pioNumbersModal">
+    <div class="modal-box" style="width: 550px; max-width: 90%; max-height: 80vh; display: flex; flex-direction: column;">
+      <h2 style="margin-bottom: 8px;">Suspected PIO Numbers — <span id="pioYearHeader">—</span></h2>
+      <p style="font-size: 13px; color: #8a93a3; margin-bottom: 15px;">List of suspected PIO phone numbers identified in documents for this year:</p>
+      
+      <div id="pioListContainer" style="flex: 1; overflow-y: auto; text-align: left; padding-right: 5px; margin-bottom: 20px;">
+        <!-- List will be populated dynamically -->
+      </div>
+      
+      <div class="modal-actions" style="margin-top: auto;">
+        <button class="btn-secondary" id="closePioModalBtn" style="width: 100%;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Cases List Modal -->
+  <div class="modal-overlay" id="casesListModal">
+    <div class="modal-box" style="width: 600px; max-width: 90%; max-height: 80vh; display: flex; flex-direction: column;">
+      <h2 style="margin-bottom: 8px;"><span id="casesListModalHeader">Cases</span></h2>
+      <p style="font-size: 13px; color: #8a93a3; margin-bottom: 15px;" id="casesListModalSubheader">List of cases matching the selected metrics:</p>
+      
+      <div id="casesListModalContainer" style="flex: 1; overflow-y: auto; text-align: left; padding-right: 5px; margin-bottom: 20px;">
+        <!-- Cases list will be populated dynamically -->
+      </div>
+      
+      <div class="modal-actions" style="margin-top: auto;">
+        <button class="btn-secondary" id="closeCasesListModalBtn" style="width: 100%;">Close</button>
+      </div>
+    </div>
+  </div>
 
   <script src="assets/auth-guard.js"></script>
-  <script src="assets/dashboard.js?v=1.8"></script>
+  <script src="assets/analytics.js?v=1.8"></script>
+  <script>
+    // User Role and Navigation buttons visibility
+    const role = localStorage.getItem("role") || "officer";
+    const userMgmtBtn = document.getElementById("userMgmtBtn");
+    if (role === "admin" && userMgmtBtn) {
+      userMgmtBtn.style.display = "inline-block";
+    }
+
+    // Change Password Modal Elements
+    const changePasswordBtn = document.getElementById("changePasswordBtn");
+    const changePasswordModal = document.getElementById("changePasswordModal");
+    const cancelChangePasswordBtn = document.getElementById("cancelChangePasswordBtn");
+    const confirmChangePasswordBtn = document.getElementById("confirmChangePasswordBtn");
+    const currentPasswordInput = document.getElementById("currentPasswordInput");
+    const newPasswordInput = document.getElementById("newPasswordInput");
+    const changePasswordStatus = document.getElementById("changePasswordStatus");
+    const forcePasswordNotice = document.getElementById("forcePasswordNotice");
+
+    function checkForcePasswordChange() {
+      if (localStorage.getItem("must_change_password") === "true") {
+        if (changePasswordModal) changePasswordModal.classList.add("show");
+        if (forcePasswordNotice) forcePasswordNotice.style.display = "block";
+        if (cancelChangePasswordBtn) cancelChangePasswordBtn.style.display = "none";
+      } else {
+        if (forcePasswordNotice) forcePasswordNotice.style.display = "none";
+        if (cancelChangePasswordBtn) cancelChangePasswordBtn.style.display = "inline-block";
+      }
+    }
+
+    if (changePasswordBtn) {
+      changePasswordBtn.addEventListener("click", () => {
+        changePasswordModal.classList.add("show");
+        changePasswordStatus.classList.remove("show", "success", "error");
+        currentPasswordInput.value = "";
+        newPasswordInput.value = "";
+        checkForcePasswordChange();
+      });
+    }
+
+    if (cancelChangePasswordBtn) {
+      cancelChangePasswordBtn.addEventListener("click", () => {
+        if (localStorage.getItem("must_change_password") !== "true") {
+          changePasswordModal.classList.remove("show");
+        }
+      });
+    }
+
+    if (confirmChangePasswordBtn) {
+      confirmChangePasswordBtn.addEventListener("click", async () => {
+        const current_password = currentPasswordInput.value;
+        const new_password = newPasswordInput.value;
+        if (!current_password || !new_password) {
+          showStatusMsg(changePasswordStatus, "Please fill in all fields", "error");
+          return;
+        }
+
+        if (new_password.length < 6) {
+          showStatusMsg(changePasswordStatus, "New password must be at least 6 characters long", "error");
+          return;
+        }
+
+        confirmChangePasswordBtn.disabled = true;
+        confirmChangePasswordBtn.textContent = "Updating...";
+
+        try {
+          const response = await apiFetch("/auth/change-password", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ current_password, new_password })
+          });
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Failed to change password");
+
+          localStorage.setItem("must_change_password", "false");
+          if (forcePasswordNotice) forcePasswordNotice.style.display = "none";
+          if (cancelChangePasswordBtn) cancelChangePasswordBtn.style.display = "inline-block";
+
+          showStatusMsg(changePasswordStatus, "Password changed successfully!", "success");
+          setTimeout(() => {
+            changePasswordModal.classList.remove("show");
+          }, 1500);
+        } catch (err) {
+          showStatusMsg(changePasswordStatus, err.message, "error");
+        } finally {
+          confirmChangePasswordBtn.disabled = false;
+          confirmChangePasswordBtn.textContent = "Change Password";
+        }
+      });
+    }
+
+    checkForcePasswordChange();
+
+    // User Management Modal Elements
+    const userMgmtModal = document.getElementById("userMgmtModal");
+    const closeUserMgmtBtn = document.getElementById("closeUserMgmtBtn");
+    const newUsernameInput = document.getElementById("newUsername");
+    const newUserPasswordInput = document.getElementById("newUserPassword");
+    const newUserRoleInput = document.getElementById("newUserRole");
+    const createUserBtn = document.getElementById("createUserBtn");
+    const createUserStatus = document.getElementById("createUserStatus");
+    const userListBody = document.getElementById("userListBody");
+
+    if (userMgmtBtn) {
+      userMgmtBtn.addEventListener("click", () => {
+        userMgmtModal.classList.add("show");
+        createUserStatus.classList.remove("show", "success", "error");
+        newUsernameInput.value = "";
+        newUserPasswordInput.value = "";
+        newUserRoleInput.value = "officer";
+        loadUsers();
+      });
+    }
+
+    if (closeUserMgmtBtn) {
+      closeUserMgmtBtn.addEventListener("click", () => {
+        userMgmtModal.classList.remove("show");
+      });
+    }
+
+    async function loadUsers() {
+      userListBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#8a93a3;">Loading...</td></tr>`;
+      try {
+        const response = await apiFetch("/auth/users");
+        if (!response) return;
+        const users = await response.json();
+        if (!response.ok) throw new Error(users.detail || "Failed to load users");
+
+        userListBody.innerHTML = users.map(u => {
+          const createdStr = u.created_at ? new Date(u.created_at).toLocaleDateString("en-IN") : "—";
+          return `
+            <tr>
+              <td style="padding: 8px 5px;">${escapeHtml(u.username)}</td>
+              <td style="padding: 8px 5px;"><span class="badge ${u.role === 'admin' ? 'badge-pending' : 'badge-closed'}">${escapeHtml(u.role)}</span></td>
+              <td style="padding: 8px 5px;">${escapeHtml(createdStr)}</td>
+            </tr>
+          `;
+        }).join("");
+      } catch (err) {
+        userListBody.innerHTML = `<tr><td colspan="3" style="text-align:center; color:#ff8080;">${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    if (createUserBtn) {
+      createUserBtn.addEventListener("click", async () => {
+        const username = newUsernameInput.value.trim();
+        const password = newUserPasswordInput.value;
+        const role = newUserRoleInput.value;
+
+        if (!username || !password || !role) {
+          showStatusMsg(createUserStatus, "Please fill in all fields", "error");
+          return;
+        }
+
+        if (password.length < 6) {
+          showStatusMsg(createUserStatus, "Password must be at least 6 characters long", "error");
+          return;
+        }
+
+        createUserBtn.disabled = true;
+        createUserBtn.textContent = "Creating...";
+
+        try {
+          const response = await apiFetch("/auth/create-user", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username, password, role })
+          });
+
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "Failed to create user");
+
+          showStatusMsg(createUserStatus, "User created successfully!", "success");
+          newUsernameInput.value = "";
+          newUserPasswordInput.value = "";
+          newUserRoleInput.value = "officer";
+          loadUsers();
+        } catch (err) {
+          showStatusMsg(createUserStatus, err.message, "error");
+        } finally {
+          createUserBtn.disabled = false;
+          createUserBtn.textContent = "Add User";
+        }
+      });
+    }
+
+    function showStatusMsg(element, message, type) {
+      if (element) {
+        element.textContent = message;
+        element.className = `upload-status show ${type}`;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return "";
+      const div = document.createElement("div");
+      div.textContent = str;
+      return div.innerHTML;
+    }
+  </script>
 
 </body>
 </html>

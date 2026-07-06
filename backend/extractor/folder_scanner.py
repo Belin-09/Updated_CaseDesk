@@ -7,13 +7,20 @@ from datetime import datetime
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".jpg", ".jpeg", ".png"}
 
 
+def is_year_dir(path: str) -> bool:
+    """Check if directory name is a 4-digit year container (e.g. 2020, 2026)."""
+    name = os.path.basename(path.rstrip(r"\/"))
+    return name.isdigit() and len(name) == 4
+
+
 def is_container_dir(path: str) -> bool:
-    """Check if directory contains subdirectories that are year containers or case folders."""
+    """Check if directory is a container holding year folders or case folders."""
+    if is_year_dir(path):
+        return True
     try:
         for entry in os.scandir(path):
             if entry.is_dir():
-                name_lower = entry.name.lower()
-                if entry.name.isdigit() or name_lower.startswith("case") or "case" in name_lower:
+                if is_year_dir(entry.path) or entry.name.lower().startswith("case") or "case" in entry.name.lower():
                     return True
     except Exception:
         pass
@@ -22,11 +29,12 @@ def is_container_dir(path: str) -> bool:
 
 def get_case_folders(root_path: str) -> list[dict]:
     """
-    Walk the root path and find all case folders and standalone files.
-    Smart depth-agnostic scanning:
-    - Root level: E:\\case_data -> scans sub-containers (2025, 2026) + standalone files
-    - Year level: E:\\cases\\2026 -> scans all case folders in 2026
-    - Single folder: E:\\cases\\2026\\Case No-01-2026 -> scans single case folder
+    Walk the root path and find all case folders.
+    Rules:
+    - Loose files directly under a container folder (like case_data) are ignored.
+    - Subfolders inside a year container (e.g. 2026) are treated as case folders.
+    - Folder names (e.g. 'Case No-01-2026' or 'Lt Col abc of xyz') are used as case_name.
+    - Single case folder input is handled directly.
     Returns list of {case_name, case_path, is_file}
     """
     case_folders = []
@@ -34,7 +42,7 @@ def get_case_folders(root_path: str) -> list[dict]:
     if not os.path.exists(root_path):
         raise ValueError(f"Root path does not exist: {root_path}")
 
-    # Single standalone file selected
+    # Single standalone file selected directly by user
     if os.path.isfile(root_path):
         ext = os.path.splitext(root_path)[1].lower()
         if ext in SUPPORTED_EXTENSIONS:
@@ -43,6 +51,17 @@ def get_case_folders(root_path: str) -> list[dict]:
                 "case_path": root_path,
                 "is_file": True
             })
+        return case_folders
+
+    # If input is directly a year directory (e.g. E:\case_data\2026)
+    if is_year_dir(root_path):
+        for entry in os.scandir(root_path):
+            if entry.is_dir():
+                case_folders.append({
+                    "case_name": entry.name,
+                    "case_path": entry.path,
+                    "is_file": False
+                })
         return case_folders
 
     # Check if root_path is a single case folder (not a container)
@@ -54,36 +73,21 @@ def get_case_folders(root_path: str) -> list[dict]:
         })
         return case_folders
 
-    # Otherwise root_path is a container directory
+    # Otherwise root_path is a container directory (e.g. E:\case_data)
+    # Loose files directly under case_data are ignored per requirement.
     for entry in os.scandir(root_path):
-        if entry.is_file():
-            ext = os.path.splitext(entry.name)[1].lower()
-            if ext in SUPPORTED_EXTENSIONS:
-                case_folders.append({
-                    "case_name": entry.name,
-                    "case_path": entry.path,
-                    "is_file": True
-                })
-        elif entry.is_dir():
-            if is_container_dir(entry.path):
-                # entry is a year container (e.g. 2026), dive 1 level deep
+        if entry.is_dir():
+            if is_year_dir(entry.path):
+                # entry is a year container (e.g. 2026), dive 1 level deep for cases
                 for case_entry in os.scandir(entry.path):
-                    if case_entry.is_file():
-                        ext = os.path.splitext(case_entry.name)[1].lower()
-                        if ext in SUPPORTED_EXTENSIONS:
-                            case_folders.append({
-                                "case_name": case_entry.name,
-                                "case_path": case_entry.path,
-                                "is_file": True
-                            })
-                    elif case_entry.is_dir():
+                    if case_entry.is_dir():
                         case_folders.append({
                             "case_name": case_entry.name,
                             "case_path": case_entry.path,
                             "is_file": False
                         })
             else:
-                # entry is a case folder (e.g. Case No-01-2026)
+                # entry is a case folder directly under root_path
                 case_folders.append({
                     "case_name": entry.name,
                     "case_path": entry.path,
@@ -200,11 +204,22 @@ def process_case_folder(case_name: str, case_path: str, is_file: bool = False) -
         "suspect": fields.get("suspect"),
         "evidence": fields.get("evidence"),
         "notes": fields.get("notes"),
+        "command": fields.get("command"),
+        "suspected_pio_numbers": fields.get("suspected_pio_numbers"),
+        "suspected_pio_count": fields.get("suspected_pio_count", 0),
+        "analyst": fields.get("analyst"),
+        "investigating_officer": fields.get("investigating_officer"),
+        "pertains_service_no": fields.get("pertains_service_no"),
+        "pertains_name": fields.get("pertains_name"),
+        "pertains_unit": fields.get("pertains_unit"),
+        "date_receiving": fields.get("date_receiving"),
+        "date_completion": fields.get("date_completion"),
+        "date_dispatch": fields.get("date_dispatch"),
         "ocr_confidence": avg_ocr_confidence,
         "fields_extracted": count_extracted_fields(fields),
         "error_flag": error_flag,
         "error_reason": error_reason,
-        "file_records": file_records,  # ← NEW
+        "file_records": file_records,
     }
 
 def get_folder_fingerprint(case_path: str, is_file: bool = False) -> dict:

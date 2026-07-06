@@ -19,14 +19,14 @@ router = APIRouter(prefix="/cases", tags=["Cases"])
 # ── Schemas ────────────────────────────────────────────────────────────────
 
 class CaseUpdateRequest(BaseModel):
-    officer: Optional[str] = None
-    date: Optional[str] = None
-    location: Optional[str] = None
-    incident_type: Optional[str] = None
-    complainant: Optional[str] = None
-    suspect: Optional[str] = None
-    evidence: Optional[str] = None
-    notes: Optional[str] = None
+    analyst: Optional[str] = None
+    investigating_officer: Optional[str] = None
+    pertains_service_no: Optional[str] = None
+    pertains_name: Optional[str] = None
+    pertains_unit: Optional[str] = None
+    date_receiving: Optional[str] = None
+    date_completion: Optional[str] = None
+    date_dispatch: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -50,6 +50,37 @@ def count_hits(case, search_term: str) -> int:
     return count
 
 
+# ── GET /cases/years — list all available case years ────────────────────────
+@router.get("/years")
+def get_case_years(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    all_cases = db.query(Case.source_folder, Case.case_name, Case.date, Case.created_at).all()
+    year_counts = defaultdict(int)
+    for c in all_cases:
+        yr = "Unknown"
+        if c.source_folder:
+            m = re.search(r"[\/\\](20\d\d|19\d\d)[\/\\]", c.source_folder)
+            if m:
+                yr = m.group(1)
+        if yr == "Unknown" and c.case_name:
+            m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
+            if m:
+                yr = m.group(1)
+        if yr == "Unknown" and c.date:
+            m = re.search(r"\b(20\d\d|19\d\d)\b", c.date)
+            if m:
+                yr = m.group(1)
+        if yr == "Unknown" and c.created_at:
+            yr = str(c.created_at.year)
+        
+        year_counts[yr] += 1
+        
+    sorted_years = sorted([{"year": y, "count": count} for y, count in year_counts.items() if y != "Unknown"], key=lambda x: x["year"], reverse=True)
+    if "Unknown" in year_counts:
+        sorted_years.append({"year": "Unknown", "count": year_counts["Unknown"]})
+        
+    return sorted_years
+
+
 # ── GET /cases — list with search, filter, sort ──────────────────────────────
 
 @router.get("/")
@@ -59,6 +90,8 @@ def list_cases(
     status: Optional[str] = Query(None, description="Filter by status: open/closed/pending"),
     incident_type: Optional[str] = Query(None, description="Filter by incident type"),
     error_flag: Optional[bool] = Query(None, description="Filter flagged cases"),
+    year: Optional[str] = Query(None, description="Filter cases by year"),
+    command: Optional[str] = Query(None, description="Filter cases by military command"),
     sort_by: str = Query("created_at", description="Sort field: created_at, date, officer, status"),
     order: str = Query("desc", description="asc or desc"),
     page: int = Query(1, ge=1),
@@ -139,6 +172,11 @@ def list_cases(
         query = query.filter(Case.status == status)
     if incident_type:
         query = query.filter(Case.incident_type.ilike(f"%{incident_type}%"))
+    if command:
+        if command.lower() == "unassigned":
+            query = query.filter(or_(Case.command == None, Case.command == ""))
+        else:
+            query = query.filter(Case.command == command)
     if error_flag is not None:
         query = query.filter(Case.error_flag == error_flag)
 
@@ -150,25 +188,53 @@ def list_cases(
         query = query.order_by(sort_column.desc())
 
     matched_files_map = defaultdict(list)
-    if search:
-        search_cleaned = search.strip()
-        # Load all matches to count hits
+    if search or year:
         all_cases = query.all()
+
+        # Post-filter by year in memory
+        if year:
+            filtered = []
+            for c in all_cases:
+                c_year = "Unknown"
+                if c.source_folder:
+                    m = re.search(r"[\/\\](20\d\d|19\d\d)[\/\\]", c.source_folder)
+                    if m:
+                        c_year = m.group(1)
+                if c_year == "Unknown" and c.case_name:
+                    m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
+                    if m:
+                        c_year = m.group(1)
+                if c_year == "Unknown" and c.date:
+                    m = re.search(r"\b(20\d\d|19\d\d)\b", c.date)
+                    if m:
+                        c_year = m.group(1)
+                if c_year == "Unknown" and c.created_at:
+                    c_year = str(c.created_at.year)
+
+                if c_year == year:
+                    filtered.append(c)
+            all_cases = filtered
+
         total = len(all_cases)
-        for c in all_cases:
-            c.hit_count = count_hits(c, search_cleaned)
-        total_hits = sum(c.hit_count for c in all_cases)
-        
-        # Sort by hit_count descending (most hits to least hits)
-        all_cases.sort(key=lambda x: getattr(x, "hit_count", 0), reverse=True)
-        
+
+        if search:
+            search_cleaned = search.strip()
+            for c in all_cases:
+                c.hit_count = count_hits(c, search_cleaned)
+            total_hits = sum(c.hit_count for c in all_cases)
+
+            # Sort by hit_count descending
+            all_cases.sort(key=lambda x: getattr(x, "hit_count", 0), reverse=True)
+        else:
+            total_hits = 0
+
         # Paginate in memory
         start_idx = (page - 1) * page_size
         cases = all_cases[start_idx:start_idx + page_size]
 
-        # Find which files contain search hits for the paginated subset
-        case_ids = [c.id for c in cases]
-        if case_ids:
+        if search and cases:
+            search_cleaned = search.strip()
+            case_ids = [c.id for c in cases]
             cfiles = db.query(CaseFile).filter(CaseFile.case_id.in_(case_ids)).all()
             for cf in cfiles:
                 if cf.raw_text and search_cleaned.lower() in cf.raw_text.lower():
@@ -178,8 +244,8 @@ def list_cases(
                             "file_name": cf.file_name,
                             "hit_count": f_hits
                         })
-            
-            # Fallback if no files are in the CaseFile table (e.g. legacy/manual uploads)
+
+            # Fallback if no files are in the CaseFile table
             for c in cases:
                 if not matched_files_map[c.id] and c.file_name:
                     f_hits = count_hits(c, search_cleaned)
@@ -210,6 +276,14 @@ def list_cases(
                 "incident_type": c.incident_type,
                 "complainant": c.complainant,
                 "suspect": c.suspect,
+                "analyst": c.analyst,
+                "investigating_officer": c.investigating_officer,
+                "pertains_service_no": c.pertains_service_no,
+                "pertains_name": c.pertains_name,
+                "pertains_unit": c.pertains_unit,
+                "date_receiving": c.date_receiving,
+                "date_completion": c.date_completion,
+                "date_dispatch": c.date_dispatch,
                 "status": c.status,
                 "error_flag": c.error_flag,
                 "error_reason": c.error_reason,
@@ -283,6 +357,7 @@ def get_case(
             {
                 "id": f.id,
                 "file_name": f.file_name,
+                "file_path": f.file_path,
                 "file_type": f.file_type,
                 "ocr_confidence": f.ocr_confidence,
                 "extraction_error": f.extraction_error,
@@ -305,6 +380,14 @@ def get_case(
         "suspect": case.suspect,
         "evidence": case.evidence,
         "notes": case.notes,
+        "analyst": case.analyst,
+        "investigating_officer": case.investigating_officer,
+        "pertains_service_no": case.pertains_service_no,
+        "pertains_name": case.pertains_name,
+        "pertains_unit": case.pertains_unit,
+        "date_receiving": case.date_receiving,
+        "date_completion": case.date_completion,
+        "date_dispatch": case.date_dispatch,
         "raw_text": case.raw_text,
         "status": case.status,
         "error_flag": case.error_flag,
@@ -355,6 +438,67 @@ def update_case(
     db.commit()
 
     return {"message": "Case updated successfully", "case_id": case.id}
+
+
+# ── POST /cases/{case_id}/reprocess ──────────────────────────────────────────
+
+@router.post("/{case_id}/reprocess")
+def reprocess_case(
+    case_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    case = db.query(Case).filter(Case.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+    files = db.query(CaseFile).filter(CaseFile.case_id == case_id).all()
+    if files:
+        merged_parts = []
+        for f in files:
+            if f.raw_text:
+                merged_parts.append(f"--- {f.file_name} ---\n{f.raw_text}")
+        merged_text = "\n\n".join(merged_parts)
+    else:
+        merged_text = case.raw_text or ""
+
+    if not merged_text.strip():
+        raise HTTPException(status_code=400, detail="No extracted text found in case files to parse")
+
+    # Re-run parser
+    from extractor.field_parser import parse_fields
+    fields = parse_fields(merged_text)
+
+    # Update metadata fields
+    case.pertains_service_no = fields.get("pertains_service_no")
+    case.pertains_name = fields.get("pertains_name")
+    case.pertains_unit = fields.get("pertains_unit")
+    case.command = fields.get("command")
+    case.suspected_pio_numbers = fields.get("suspected_pio_numbers")
+    case.suspected_pio_count = fields.get("suspected_pio_count", 0)
+    case.incident_type = fields.get("incident_type")
+
+    case.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(case)
+
+    # Audit log
+    db.add(AuditLog(
+        username=current_user.username,
+        action="REPROCESSED_CASE_DETAILS",
+        case_id=case_id,
+        details="Reprocessed case document extract fields"
+    ))
+    db.commit()
+
+    return {
+        "message": "Fields reprocessed successfully",
+        "fields": {
+            "pertains_service_no": case.pertains_service_no,
+            "pertains_name": case.pertains_name,
+            "pertains_unit": case.pertains_unit,
+        }
+    }
 
 
 # ── DELETE /cases/{id} ──────────────────────────────────────────────────

@@ -1350,3 +1350,213 @@ body.login-page {
   height: 100vh !important;
   overflow: hidden;
 }
+
+/* ── Analytics & Charts Grid ────────────────────────────────────────────── */
+
+.charts-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 24px;
+  margin-top: 24px;
+}
+
+@media (max-width: 900px) {
+  .charts-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chart-card {
+  background: #161c23;
+  border: 1px solid #2a3441;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  min-height: 380px;
+  min-width: 0;
+}
+
+.chart-card h3 {
+  font-size: 15px;
+  font-weight: 600;
+  color: #e8eaed;
+  margin-bottom: 20px;
+}
+
+.chart-container {
+  position: relative;
+  height: 320px;
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+/* Thin premium scrollbar for chart container */
+.chart-container::-webkit-scrollbar {
+  height: 6px;
+}
+
+.chart-container::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 3px;
+}
+
+.chart-container::-webkit-scrollbar-thumb {
+  background: #2a3441;
+  border-radius: 3px;
+}
+
+.chart-container::-webkit-scrollbar-thumb:hover {
+  background: #4f9cff;
+}
+
+/* ── Year Folder Card ────────────────────────────────────────────────────── */
+
+.year-folder-card {
+  background: #161c23;
+  border: 1px solid #2a3441;
+  border-radius: 12px;
+  padding: 24px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.year-folder-card:hover {
+  transform: translateY(-2px);
+  border-color: #4f9cff;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3), 0 0 10px rgba(79, 156, 255, 0.1);
+}
+
+.folder-icon-wrapper {
+  background: rgba(79, 156, 255, 0.08);
+  border-radius: 10px;
+  width: 64px;
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  border: 1px solid rgba(79, 156, 255, 0.15);
+}
+
+.year-folder-card:hover .folder-icon-wrapper {
+  background: rgba(79, 156, 255, 0.15);
+  border-color: rgba(79, 156, 255, 0.3);
+  transform: scale(1.05);
+}
+
+.folder-svg {
+  transition: stroke 0.2s;
+}
+
+.year-folder-card:hover .folder-svg {
+  stroke: #6bb0ff;
+}
+
+.folder-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.folder-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: #e8eaed;
+}
+
+.folder-count {
+  font-size: 13px;
+  color: #8a93a3;
+}
+
+/* ── Breadcrumb Bar Styles ───────────────────────────────────────────────── */
+.breadcrumb-bar {
+  display: flex;
+  align-items: center;
+  background: #11161d;
+  border: 1px solid #2a3441;
+  padding: 8px 16px;
+  border-radius: 8px;
+  max-width: fit-content;
+}
+
+.breadcrumb-bar span {
+  font-size: 12px;
+}
+
+/* ── Two-tier Folders in Document Preview ─────────────────────────────── */
+
+.preview-folder-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #11161d;
+  color: #8a93a3;
+  border: 1px solid #2a3441;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+.preview-folder-tab:hover {
+  border-color: #4f9cff;
+  color: #e8eaed;
+}
+
+.preview-folder-tab.active {
+  background: rgba(79, 156, 255, 0.05);
+  color: #4f9cff;
+  border-color: #4f9cff;
+}
+
+.preview-sub-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 8px 12px;
+  background: rgba(79, 156, 255, 0.02);
+  border: 1px dashed rgba(79, 156, 255, 0.18);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  margin-top: -4px;
+}
+
+.preview-sub-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: #161c23;
+  color: #a0a8b5;
+  border: 1px solid #2a3441;
+  border-radius: 6px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s ease;
+}
+
+.preview-sub-tab:hover {
+  border-color: #4f9cff;
+  color: #e8eaed;
+  background: #1e252f;
+}
+
+.preview-sub-tab.active {
+  background: rgba(79, 156, 255, 0.15);
+  color: #4f9cff;
+  border-color: #4f9cff;
+}

@@ -131,6 +131,14 @@ def upload_file(
         status="open",
         error_flag=error_flag,
         error_reason=error_reason,
+        analyst=fields.get("analyst"),
+        investigating_officer=fields.get("investigating_officer"),
+        pertains_service_no=fields.get("pertains_service_no"),
+        pertains_name=fields.get("pertains_name"),
+        pertains_unit=fields.get("pertains_unit"),
+        date_receiving=fields.get("date_receiving"),
+        date_completion=fields.get("date_completion"),
+        date_dispatch=fields.get("date_dispatch"),
     )
     db.add(case)
     db.commit()
@@ -202,7 +210,12 @@ def process_single_folder(folder: dict, username: str):
                 existing.file_count == fingerprint["file_count"]
                 and existing.last_modified == fingerprint["last_modified"]
             )
-            if unchanged:
+            missing_pertains = (
+                existing.pertains_service_no is None
+                and existing.pertains_name is None
+                and existing.pertains_unit is None
+            )
+            if unchanged and not missing_pertains:
                 with scan_lock:
                     scan_state["skipped"] += 1
                     scan_state["cases"].append({
@@ -225,11 +238,22 @@ def process_single_folder(folder: dict, username: str):
             existing.suspect = data["suspect"]
             existing.evidence = data["evidence"]
             existing.notes = data["notes"]
+            existing.command = data.get("command")
+            existing.suspected_pio_numbers = data.get("suspected_pio_numbers")
+            existing.suspected_pio_count = data.get("suspected_pio_count", 0)
             existing.error_flag = data["error_flag"]
             existing.error_reason = data["error_reason"]
             existing.ocr_confidence = str(data["ocr_confidence"]) if data["ocr_confidence"] is not None else None
             existing.file_count = fingerprint["file_count"]
             existing.last_modified = fingerprint["last_modified"]
+            existing.analyst = data.get("analyst")
+            existing.investigating_officer = data.get("investigating_officer")
+            existing.pertains_service_no = data.get("pertains_service_no")
+            existing.pertains_name = data.get("pertains_name")
+            existing.pertains_unit = data.get("pertains_unit")
+            existing.date_receiving = data.get("date_receiving")
+            existing.date_completion = data.get("date_completion")
+            existing.date_dispatch = data.get("date_dispatch")
             existing.updated_at = datetime.utcnow()
 
             # Replace old per-file records with fresh ones
@@ -284,11 +308,22 @@ def process_single_folder(folder: dict, username: str):
                 suspect=data["suspect"],
                 evidence=data["evidence"],
                 notes=data["notes"],
+                command=data.get("command"),
+                suspected_pio_numbers=data.get("suspected_pio_numbers"),
+                suspected_pio_count=data.get("suspected_pio_count", 0),
                 status="open",
                 error_flag=data["error_flag"],
                 error_reason=data["error_reason"],
                 file_count=fingerprint["file_count"],
                 last_modified=fingerprint["last_modified"],
+                analyst=data.get("analyst"),
+                investigating_officer=data.get("investigating_officer"),
+                pertains_service_no=data.get("pertains_service_no"),
+                pertains_name=data.get("pertains_name"),
+                pertains_unit=data.get("pertains_unit"),
+                date_receiving=data.get("date_receiving"),
+                date_completion=data.get("date_completion"),
+                date_dispatch=data.get("date_dispatch"),
             )
             db.add(case)
             db.commit()

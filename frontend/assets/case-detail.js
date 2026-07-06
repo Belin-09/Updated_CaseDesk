@@ -14,7 +14,7 @@ if (searchTerm) {
   }
 }
 
-const fieldIds = ["officer", "date", "location", "incident_type", "complainant", "suspect", "evidence", "notes", "status"];
+const fieldIds = ["analyst", "investigating_officer", "pertains_service_no", "pertains_name", "pertains_unit", "date_receiving", "date_completion", "date_dispatch", "status"];
 
 async function loadCase() {
   const response = await apiFetch(`/cases/${caseId}`);
@@ -80,6 +80,15 @@ async function loadCase() {
     previewContainer.parentNode.insertBefore(tabsContainer, previewContainer);
   }
 
+  let subTabsContainer = document.getElementById("previewSubTabsContainer");
+  if (!subTabsContainer && previewContainer && tabsContainer) {
+    subTabsContainer = document.createElement("div");
+    subTabsContainer.id = "previewSubTabsContainer";
+    subTabsContainer.className = "preview-sub-tabs";
+    subTabsContainer.style.display = "none";
+    tabsContainer.parentNode.insertBefore(subTabsContainer, tabsContainer.nextSibling);
+  }
+
   // Hide the source files card
   const sourceFilesCard = document.getElementById("fileList")?.closest(".detail-card");
   if (sourceFilesCard) {
@@ -93,18 +102,25 @@ async function loadCase() {
   document.getElementById("m_error_flag").textContent = c.error_flag ? "Yes" : "No";
   document.getElementById("m_error_reason").textContent = c.error_reason || "—";
 
-  renderTabs(c.files || [], c.raw_text, c.file_name, c.id);
+  renderTabs(c.files || [], c.raw_text, c.file_name, c.id, c.source_folder);
 
   // Load first preview on startup
   const docsCount = (c.files && c.files.length > 0) ? c.files.length : (c.file_name ? 1 : 0);
   if (docsCount > 0) {
-    selectTab(0);
+    let startIndex = 0;
+    if (searchTerm && window.previewDocsList) {
+      const matchIndex = window.previewDocsList.findIndex(d => d.hit_count > 0);
+      if (matchIndex !== -1) {
+        startIndex = matchIndex;
+      }
+    }
+    selectTab(startIndex);
   } else {
     loadPreview(null, 0, null);
   }
 }
 
-function renderTabs(files, caseRawText, mainFileName, caseId) {
+function renderTabs(files, caseRawText, mainFileName, caseId, sourceFolder) {
   const tabsContainer = document.getElementById("previewTabsContainer");
   if (!tabsContainer) return;
 
@@ -115,6 +131,7 @@ function renderTabs(files, caseRawText, mainFileName, caseId) {
     docs = [{
       id: 0,
       file_name: mainFileName,
+      file_path: null,
       file_type: mainFileName.split('.').pop().toLowerCase(),
       raw_text: caseRawText
     }];
@@ -125,18 +142,9 @@ function renderTabs(files, caseRawText, mainFileName, caseId) {
     return;
   }
 
-  tabsContainer.style.display = "flex";
-  if (!tabsContainer.dataset.wheelBound) {
-    tabsContainer.dataset.wheelBound = "true";
-    tabsContainer.addEventListener("wheel", (evt) => {
-      if (evt.deltaY !== 0) {
-        evt.preventDefault();
-        tabsContainer.scrollLeft += evt.deltaY;
-      }
-    }, { passive: false });
-  }
-  tabsContainer.innerHTML = docs.map((f, index) => {
-    // Count hits in this particular file dynamically
+  // Calculate hits and add properties to flat docs list
+  docs.forEach((f, index) => {
+    f.flatIndex = index;
     let fileHits = 0;
     const ext = f.file_name.split('.').pop().toLowerCase();
     const isImage = ["png", "jpg", "jpeg", "gif"].includes(ext);
@@ -151,42 +159,178 @@ function renderTabs(files, caseRawText, mainFileName, caseId) {
         pos = lowerText.indexOf(lowerTerm, pos + lowerTerm.length);
       }
     }
+    f.hit_count = fileHits;
 
-    const hitBadge = fileHits > 0 
-      ? `<span class="tab-hit-badge">${fileHits} hit${fileHits !== 1 ? 's' : ''}</span>`
+    if (!f.file_path || !sourceFolder) {
+      f.folderName = null;
+      return;
+    }
+    
+    let rel = f.file_path;
+    if (rel.toLowerCase().startsWith(sourceFolder.toLowerCase())) {
+      rel = rel.substring(sourceFolder.length);
+    }
+    rel = rel.replace(/^[\\\/]/, "").replace(/\\/g, "/");
+
+    if (rel.includes("/")) {
+      const folderName = rel.substring(0, rel.lastIndexOf("/"));
+      const displayFolderName = folderName.replace(/\//g, " / ");
+      f.folderName = displayFolderName;
+      f.folderId = displayFolderName.replace(/[\s\/]+/g, "-");
+    } else {
+      f.folderName = null;
+    }
+  });
+
+  // Group files by relative folder path
+  const rootFiles = [];
+  const groups = {}; // key: folder path, value: array of files
+
+  docs.forEach(f => {
+    if (f.folderName) {
+      if (!groups[f.folderName]) {
+        groups[f.folderName] = [];
+      }
+      groups[f.folderName].push(f);
+    } else {
+      rootFiles.push(f);
+    }
+  });
+
+  window.previewDocsList = docs;
+  window.caseMainRawText = caseRawText;
+  window.currentCaseId = caseId;
+  window.folderGroups = groups;
+  window.activeFolderName = null;
+
+  let html = "";
+
+  // 1. Render root files
+  rootFiles.forEach(f => {
+    const hitBadge = f.hit_count > 0 
+      ? `<span class="tab-hit-badge">${f.hit_count} hit${f.hit_count !== 1 ? 's' : ''}</span>`
       : "";
+    const ext = f.file_name.split('.').pop().toLowerCase();
+    let icon = "📄";
+    if (ext === "pdf") icon = "📕";
+    else if (["png", "jpg", "jpeg"].includes(ext)) icon = "🖼️";
 
-    // Determine icon
+    html += `
+      <div class="preview-tab" id="tab-${f.flatIndex}" onclick="selectTab(${f.flatIndex})" title="${escapeHtml(f.file_name)}">
+        <span>${icon} ${escapeHtml(f.file_name)}</span>
+        ${hitBadge}
+      </div>
+    `;
+  });
+
+  // 2. Render folder tabs
+  Object.keys(groups).sort().forEach(folderName => {
+    const folderFiles = groups[folderName];
+    const totalFolderHits = folderFiles.reduce((sum, file) => sum + file.hit_count, 0);
+    const folderHitBadge = totalFolderHits > 0
+      ? `<span class="tab-hit-badge folder-badge">${totalFolderHits} hit${totalFolderHits !== 1 ? 's' : ''}</span>`
+      : "";
+    const folderId = folderName.replace(/[\s\/]+/g, "-");
+
+    html += `
+      <div class="preview-folder-tab" id="folder-tab-${folderId}" onclick="selectFolderTab('${folderName}')">
+        <span>📁 ${escapeHtml(folderName)}</span>
+        ${folderHitBadge}
+      </div>
+    `;
+  });
+
+  tabsContainer.style.display = "flex";
+  if (!tabsContainer.dataset.wheelBound) {
+    tabsContainer.dataset.wheelBound = "true";
+    tabsContainer.addEventListener("wheel", (evt) => {
+      if (evt.deltaY !== 0) {
+        evt.preventDefault();
+        tabsContainer.scrollLeft += evt.deltaY;
+      }
+    }, { passive: false });
+  }
+
+  tabsContainer.innerHTML = html;
+}
+
+window.selectFolderTab = function(folderName) {
+  const folderFiles = window.folderGroups[folderName];
+  if (folderFiles && folderFiles.length > 0) {
+    selectTab(folderFiles[0].flatIndex);
+  }
+};
+
+window.renderSubTabs = function(folderName) {
+  const subContainer = document.getElementById("previewSubTabsContainer");
+  if (!subContainer) return;
+
+  const folderFiles = window.folderGroups[folderName] || [];
+  subContainer.innerHTML = folderFiles.map(f => {
+    const hitBadge = f.hit_count > 0 
+      ? `<span class="tab-hit-badge">${f.hit_count} hit${f.hit_count !== 1 ? 's' : ''}</span>`
+      : "";
+    const ext = f.file_name.split('.').pop().toLowerCase();
     let icon = "📄";
     if (ext === "pdf") icon = "📕";
     else if (["png", "jpg", "jpeg"].includes(ext)) icon = "🖼️";
 
     return `
-      <div class="preview-tab" id="tab-${index}" onclick="selectTab(${index})" title="${escapeHtml(f.file_name)}">
+      <div class="preview-sub-tab" id="sub-tab-${f.flatIndex}" onclick="selectTab(${f.flatIndex})" title="${escapeHtml(f.file_name)}">
         <span>${icon} ${escapeHtml(f.file_name)}</span>
         ${hitBadge}
       </div>
     `;
   }).join("");
-
-  window.previewDocsList = docs;
-  window.caseMainRawText = caseRawText;
-  window.currentCaseId = caseId;
-}
+};
 
 window.selectTab = function(index) {
-  const tabs = document.querySelectorAll(".preview-tab");
-  tabs.forEach((tab, i) => {
-    if (i === index) {
-      tab.classList.add("active");
-    } else {
-      tab.classList.remove("active");
-    }
-  });
-
   const file = window.previewDocsList[index];
-  // If it's a real case file (id != 0), use its individual raw_text (or empty if none).
-  // If it's the fallback main case file (id == 0), use its raw_text or the case's main raw text.
+  if (!file) return;
+
+  if (file.folderName) {
+    const subContainer = document.getElementById("previewSubTabsContainer");
+    if (subContainer) {
+      subContainer.style.display = "flex";
+      if (window.activeFolderName !== file.folderName) {
+        window.activeFolderName = file.folderName;
+        window.renderSubTabs(file.folderName);
+      }
+    }
+
+    // Highlight the folder tab
+    document.querySelectorAll(".preview-tab, .preview-folder-tab").forEach(tab => {
+      tab.classList.remove("active");
+    });
+    const folderTab = document.getElementById(`folder-tab-${file.folderId}`);
+    if (folderTab) {
+      folderTab.classList.add("active");
+    }
+
+    // Highlight sub-tab item
+    document.querySelectorAll(".preview-sub-tab").forEach(sTab => {
+      sTab.classList.remove("active");
+    });
+    const subTab = document.getElementById(`sub-tab-${index}`);
+    if (subTab) {
+      subTab.classList.add("active");
+    }
+  } else {
+    window.activeFolderName = null;
+    const subContainer = document.getElementById("previewSubTabsContainer");
+    if (subContainer) {
+      subContainer.style.display = "none";
+    }
+
+    document.querySelectorAll(".preview-tab, .preview-folder-tab").forEach(tab => {
+      if (tab.id === `tab-${index}`) {
+        tab.classList.add("active");
+      } else {
+        tab.classList.remove("active");
+      }
+    });
+  }
+
   const rawText = (file.id === 0) ? (file.raw_text || window.caseMainRawText) : (file.raw_text || "");
   loadPreview(file.file_name, file.id, rawText);
 };
@@ -448,6 +592,41 @@ document.getElementById("deleteBtn").addEventListener("click", async () => {
     alert(data.detail || "Failed to delete case");
   }
 });
+
+// ── Reprocess Fields ─────────────────────────────────────────────────────
+
+const reprocessBtn = document.getElementById("reprocessBtn");
+if (reprocessBtn) {
+  reprocessBtn.addEventListener("click", async () => {
+    reprocessBtn.disabled = true;
+    reprocessBtn.textContent = "Reprocessing...";
+
+    try {
+      const response = await apiFetch(`/cases/${caseId}/reprocess`, {
+        method: "POST"
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Failed to reprocess fields");
+
+      // Reload fields
+      loadCase();
+      
+      const saveStatus = document.getElementById("saveStatus");
+      if (saveStatus) {
+        saveStatus.textContent = "Fields reprocessed & updated successfully";
+        saveStatus.style.color = "#4ade80";
+        setTimeout(() => { saveStatus.textContent = ""; }, 3000);
+      }
+
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      reprocessBtn.disabled = false;
+      reprocessBtn.textContent = "🔄 Reprocess Fields";
+    }
+  });
+}
 
 // ── Init ─────────────────────────────────────────────────────────────────
 

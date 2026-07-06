@@ -96,13 +96,127 @@ def clean_value(value: str) -> str:
 
     return value.split("\n")[0].strip()
 
+# ── Custom Field Extractors ──────────────────────────────────────────────
+
+COMMAND_KEYWORDS = [
+    ("North Eastern", [r"north\s*eastern\s*(?:command|comd)?", r"\bne\s+comd\b"]),
+    ("South Western", [r"south\s*western\s*(?:command|comd)?", r"\bsw\s+comd\b"]),
+    ("Central", [r"central\s+(?:command|comd)", r"\bcentral\b"]),
+    ("Northern", [r"northern\s+(?:command|comd)", r"\bnorthern\b"]),
+    ("Southern", [r"southern\s+(?:command|comd)", r"\bsouthern\b"]),
+    ("Eastern", [r"eastern\s+(?:command|comd)", r"\beastern\b"]),
+    ("Western", [r"western\s+(?:command|comd)", r"\bwestern\b"]),
+]
+
+def extract_command(text: str) -> Optional[str]:
+    """Identify military command from text."""
+    if not text:
+        return None
+    for cmd_name, patterns in COMMAND_KEYWORDS:
+        for pat in patterns:
+            if re.search(pat, text, re.IGNORECASE):
+                return cmd_name
+    return None
+
+def extract_suspected_pio_numbers(text: str) -> tuple[str, int]:
+    """Find phone numbers following 'Suspected PIO' / 'Suspect PIO' / 'PIO'."""
+    if not text:
+        return "", 0
+    patterns = [
+        r"(?:suspected\s+pio|suspect\s+pio|pio\s*(?:no|number)?|pio\s+mobile)[\s:–\-]*(\+?\d[\d\s\-]{8,14}\d)",
+        r"(?:suspected\s+pio|suspect\s+pio)[\s\w]*?(\+?\d{10,12})"
+    ]
+    found_numbers = set()
+    for pat in patterns:
+        for match in re.finditer(pat, text, re.IGNORECASE):
+            raw_num = re.sub(r"[^\d+]", "", match.group(1))
+            if len(raw_num) >= 10:
+                found_numbers.add(raw_num)
+
+    numbers_str = ", ".join(sorted(found_numbers))
+    return numbers_str, len(found_numbers)
+
+def classify_case_type(raw_text: str, extracted_type: Optional[str]) -> str:
+    """Classify case into Int (Cyber Espionage), Int (Social Media violation), or DV / Misc."""
+    combined = f"{extracted_type or ''} {raw_text or ''}".lower()
+    if re.search(r"cyber\s*espionage|espionage|cyber\s*attack", combined):
+        return "Int (Cyber Espionage)"
+    if re.search(r"social\s*media|whatsapp|facebook|telegram|instagram|honeytrap", combined):
+        return "Int (Social Media violation)"
+    return "DV / Misc"
+
+def extract_pertains_service_no(text: str) -> Optional[str]:
+    """Extract military service/army number (e.g. IC-72314X, SS-12345, 12345678A)."""
+    if not text:
+        return None
+    patterns = [
+        r"(?:service\s+no|army\s+no|personal\s+no|no\.?)[\s:–\-]+([A-Z]{2,3}[\-\s]?\d{5,6}[A-Z]?|\d{7,8}[A-Z]?)",
+        r"\b([A-Z]{2,3}[\-\s]?\d{5,6}[A-Z]?|\d{7,8}[A-Z])\b"
+    ]
+    for pat in patterns:
+        match = re.search(pat, text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return None
+
+def extract_pertains_name(text: str) -> Optional[str]:
+    """Extract officer name under pertains-to or rank search."""
+    if not text:
+        return None
+    patterns = [
+        r"(?:pertains\s+to|Pertains\s+to|PERTAINS\s+TO|name|Name|NAME|offr|Offr|OFFR|officer|Officer|OFFICER)[\s:–\-]+(?:(?:Lt\s+Col|Col|Major|Capt|Lt|Sub|Hav|Nk|L/Nk|Sep|Col|Brig|Maj\s+Gen|Gen|Havildar|Naik|Sepoy|lt\s+col|col|major|capt|lt|sub|hav|nk|l/nk|sep|havildar|naik|sepoy)\s+)?([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)+)",
+        r"\b(?:Lt\s+Col|Col|Major|Capt|Lt|Sub|Hav|Nk|L/Nk|Sep|Havildar|Naik|Sepoy|lt\s+col|col|major|capt|lt|sub|hav|nk|l/nk|sep|havildar|naik|sepoy)\s+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*)\b"
+    ]
+    for pat in patterns:
+        match = re.search(pat, text, re.MULTILINE)
+        if match:
+            return match.group(1).strip()
+    return None
+
+def extract_pertains_unit(text: str) -> Optional[str]:
+    """Extract unit name (e.g. 12 Engrs, 123 Field Regt, HQ 12 Corps)."""
+    if not text:
+        return None
+    patterns = [
+        r"(?:unit)[\s:–\-]+([A-Za-z0-9\s\(\)\-\.,]+?)(?:\n|$)",
+        r"\b(\d{1,4}\s+(?:Engrs|Arty|Inf\s+Bn|Regt|Signal|Fd\s+Regt|Sikh|Jat|Rajput|Kumaon|Garh\s+Rif|Assam|Mahar|JAK\s+RIF|JAK\s+LI|Para|Gorkha|Armd\s+Regt|Cav|ASC|AMC|AOC|EME))\b"
+    ]
+    for pat in patterns:
+        match = re.search(pat, text, re.IGNORECASE)
+        if match:
+            return match.group(1).strip()
+    return None
+
+def extract_ro_pattern(text: str) -> Optional[dict]:
+    """
+    Extract pertains Service No, Name, and Unit matching the R/O pattern:
+    e.g. 'CYBER FORENSIC INVESTIGATION IN R/O 047588 NB SUB HARISH OF ABC (CASE NO-04)'
+    """
+    if not text:
+        return None
+    pattern = r"\br/o\s+([A-Z0-9\-\s]{4,15}?)\s+([^of\n]+?)\s+of\s+([^(\n]+)"
+    match = re.search(pattern, text, re.IGNORECASE)
+    if match:
+        service_no = match.group(1).strip()
+        name = match.group(2).strip()
+        unit = match.group(3).strip()
+        
+        name = re.sub(r"\s+", " ", name)
+        unit = re.sub(r"\s+", " ", unit)
+        
+        if service_no and name and unit:
+            return {
+                "pertains_service_no": service_no,
+                "pertains_name": name,
+                "pertains_unit": unit
+            }
+    return None
+
 # ── Main Parser ───────────────────────────────────────────────────────────────
 
 def parse_fields(raw_text: str) -> dict:
     """
-    Extract all 8 fields from raw text.
-    Uses regex first, spaCy fallback for officer and location.
-    Returns a dict with all fields (None if not found).
+    Extract all fields from raw text including Command, PIO numbers, and Case Type.
     """
     fields = {}
     spacy_fallback_fields = {"officer", "location"}
@@ -115,6 +229,30 @@ def parse_fields(raw_text: str) -> dict:
 
         fields[field] = clean_value(value) if value else None
 
+    # Custom Analytics fields
+    fields["command"] = extract_command(raw_text)
+    pio_str, pio_count = extract_suspected_pio_numbers(raw_text)
+    fields["suspected_pio_numbers"] = pio_str
+    fields["suspected_pio_count"] = pio_count
+    fields["incident_type"] = classify_case_type(raw_text, fields.get("incident_type"))
+
+    # Custom pertains-to fields
+    ro_data = extract_ro_pattern(raw_text)
+    if ro_data:
+        fields["pertains_service_no"] = ro_data["pertains_service_no"]
+        fields["pertains_name"] = ro_data["pertains_name"]
+        fields["pertains_unit"] = ro_data["pertains_unit"]
+    else:
+        fields["pertains_service_no"] = extract_pertains_service_no(raw_text)
+        fields["pertains_name"] = extract_pertains_name(raw_text)
+        fields["pertains_unit"] = extract_pertains_unit(raw_text)
+        
+    fields["analyst"] = None
+    fields["investigating_officer"] = None
+    fields["date_receiving"] = None
+    fields["date_completion"] = None
+    fields["date_dispatch"] = None
+
     return fields
 
 
@@ -122,4 +260,5 @@ def parse_fields(raw_text: str) -> dict:
 
 def count_extracted_fields(fields: dict) -> int:
     """Count how many fields were successfully extracted (not None)."""
-    return sum(1 for v in fields.values() if v is not None)
+    extractable_fields = ["pertains_service_no", "pertains_name", "pertains_unit"]
+    return sum(1 for k in extractable_fields if fields.get(k) is not None)

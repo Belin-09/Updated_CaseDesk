@@ -49,6 +49,21 @@ class Case(Base):
     file_count    = Column(Integer, nullable=True)
     last_modified = Column(DateTime, nullable=True)
 
+    # Custom Analytics fields
+    command       = Column(String(100), nullable=True, index=True)
+    suspected_pio_numbers = Column(Text, nullable=True)
+    suspected_pio_count   = Column(Integer, default=0)
+
+    # New custom metadata fields
+    analyst = Column(String(255), nullable=True)
+    investigating_officer = Column(String(255), nullable=True)
+    pertains_service_no = Column(String(255), nullable=True, index=True)
+    pertains_name = Column(String(255), nullable=True, index=True)
+    pertains_unit = Column(String(255), nullable=True, index=True)
+    date_receiving = Column(String(100), nullable=True)
+    date_completion = Column(String(100), nullable=True)
+    date_dispatch = Column(String(100), nullable=True)
+
 
 class CaseFile(Base):
     __tablename__ = "case_files"
