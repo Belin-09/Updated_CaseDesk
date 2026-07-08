@@ -103,11 +103,9 @@ def _build_pdf(case: Case, files: list, file_path: str):
 
     # ── Case overview table ─────────────────────────────────────────────
     overview_data = [
-        ["Case Name", case.case_name or "—", "Case ID", str(case.id)],
-        ["Status", case.status.upper() if case.status else "—", "Flagged", "Yes" if case.error_flag else "No"],
-        ["Officer", case.officer or "—", "Date", case.date or "—"],
-        ["Location", case.location or "—", "Incident Type", case.incident_type or "—"],
-        ["Complainant", case.complainant or "—", "Suspect", case.suspect or "—"],
+        ["Case Name", case.case_name or "—", "Status", case.status.upper() if case.status else "—"],
+        ["Incident Type", case.incident_type or "—", "Flagged", "Yes" if case.error_flag else "No"],
+        ["Uploaded By", case.uploaded_by or "—", "", ""],
     ]
 
     overview_table = Table(overview_data, colWidths=[80, 150, 80, 150])
@@ -146,14 +144,6 @@ def _build_pdf(case: Case, files: list, file_path: str):
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     elements.append(custom_table)
-
-    # ── Evidence ─────────────────────────────────────────────────────────
-    elements.append(Paragraph("Evidence", section_style))
-    elements.append(Paragraph(case.evidence or "No evidence recorded.", body_style))
-
-    # ── Notes ────────────────────────────────────────────────────────────
-    elements.append(Paragraph("Notes", section_style))
-    elements.append(Paragraph(case.notes or "No additional notes.", body_style))
 
     # ── Source files ─────────────────────────────────────────────────────
     elements.append(Paragraph("Source Files", section_style))

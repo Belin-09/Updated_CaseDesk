@@ -10,7 +10,6 @@ pdfplumber
 python-docx
 pdf2image
 pytesseract
-spacy
 reportlab
 python-multipart
 Pillow

@@ -12,15 +12,7 @@ class Case(Base):
     file_path      = Column(String(500))
 
     # Extracted fields
-    officer = Column(String(255), index=True, nullable=True)
-    date = Column(String(100), nullable=True)
-    location = Column(String(255), index=True, nullable=True)
     incident_type = Column(String(255), index=True, nullable=True)
-    complainant = Column(String(255), nullable=True)
-    suspect = Column(String(255), nullable=True)
-
-    evidence = Column(Text, nullable=True)
-    notes = Column(Text, nullable=True)
     raw_text = Column(LONGTEXT, nullable=True)
 
     # Status
@@ -60,9 +52,6 @@ class Case(Base):
     pertains_service_no = Column(String(255), nullable=True, index=True)
     pertains_name = Column(String(255), nullable=True, index=True)
     pertains_unit = Column(String(255), nullable=True, index=True)
-    date_receiving = Column(String(100), nullable=True)
-    date_completion = Column(String(100), nullable=True)
-    date_dispatch = Column(String(100), nullable=True)
     date_deposition = Column(String(100), nullable=True)
     date_issuance = Column(String(100), nullable=True)
     date_intimation = Column(String(100), nullable=True)

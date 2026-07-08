@@ -406,8 +406,6 @@ async function fetchAndShowCasesModal(headerText, subheaderText, apiParams) {
           <div style="display: flex; flex-direction: column; gap: 4px;">
             <span style="color: #e8eaed; font-weight: 600;">${escapeHtml(c.case_name || c.file_name || 'Untitled Case')}</span>
             <div style="display: flex; gap: 8px; align-items: center; font-size: 11px; color: #8a93a3;">
-              <span>Case #${c.id}</span>
-              <span>•</span>
               <span>by ${escapeHtml(c.uploaded_by || 'unknown')}</span>
               <span>•</span>
               ${statusBadge}

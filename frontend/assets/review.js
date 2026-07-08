@@ -39,7 +39,7 @@ function renderList() {
     <div class="review-list-item ${c.id === selectedCaseId ? 'active' : ''}" onclick="selectCase(${c.id})">
       <div class="review-list-item-left">
         <div class="title">${escapeHtml(c.case_name || c.file_name || 'Untitled Case')}</div>
-        <div class="meta">Case #${c.id} · ${escapeHtml(c.uploaded_by || 'unknown')}</div>
+        <div class="meta">Uploaded by ${escapeHtml(c.uploaded_by || 'unknown')}</div>
       </div>
       <span class="reason-badge">${c.error_reason}</span>
     </div>
@@ -87,47 +87,57 @@ function renderDetail(c) {
 
     <div class="field-row">
       <div class="field-group">
-        <label>Officer</label>
-        <input type="text" id="r_officer" value="${escapeAttr(c.officer)}">
+        <label>Analyst</label>
+        <input type="text" id="r_analyst" value="${escapeAttr(c.analyst)}">
       </div>
       <div class="field-group">
-        <label>Date</label>
-        <input type="text" id="r_date" value="${escapeAttr(c.date)}">
+        <label>Investigating Officer</label>
+        <input type="text" id="r_investigating_officer" value="${escapeAttr(c.investigating_officer)}">
+      </div>
+    </div>
+    <div class="field-row" style="grid-template-columns: repeat(3, 1fr);">
+      <div class="field-group">
+        <label>Pertains Service No</label>
+        <input type="text" id="r_pertains_service_no" value="${escapeAttr(c.pertains_service_no)}">
+      </div>
+      <div class="field-group">
+        <label>Pertains Name</label>
+        <input type="text" id="r_pertains_name" value="${escapeAttr(c.pertains_name)}">
+      </div>
+      <div class="field-group">
+        <label>Pertains Unit</label>
+        <input type="text" id="r_pertains_unit" value="${escapeAttr(c.pertains_unit)}">
+      </div>
+    </div>
+    <div class="field-row" style="grid-template-columns: repeat(4, 1fr);">
+      <div class="field-group">
+        <label>Deposition Date</label>
+        <input type="text" id="r_date_deposition" value="${escapeAttr(c.date_deposition)}">
+      </div>
+      <div class="field-group">
+        <label>Hash Letter Issuance</label>
+        <input type="text" id="r_date_issuance" value="${escapeAttr(c.date_issuance)}">
+      </div>
+      <div class="field-group">
+        <label>Intimation Date</label>
+        <input type="text" id="r_date_intimation" value="${escapeAttr(c.date_intimation)}">
+      </div>
+      <div class="field-group">
+        <label>Return Date</label>
+        <input type="text" id="r_date_return" value="${escapeAttr(c.date_return)}">
       </div>
     </div>
     <div class="field-row">
-      <div class="field-group">
-        <label>Location</label>
-        <input type="text" id="r_location" value="${escapeAttr(c.location)}">
-      </div>
       <div class="field-group">
         <label>Incident Type</label>
         <input type="text" id="r_incident_type" value="${escapeAttr(c.incident_type)}">
       </div>
-    </div>
-    <div class="field-row">
       <div class="field-group">
-        <label>Complainant</label>
-        <input type="text" id="r_complainant" value="${escapeAttr(c.complainant)}">
-      </div>
-      <div class="field-group">
-        <label>Suspect</label>
-        <input type="text" id="r_suspect" value="${escapeAttr(c.suspect)}">
+        <label>Military Command</label>
+        <input type="text" id="r_command" value="${escapeAttr(c.command)}">
       </div>
     </div>
-    <div class="field-row">
-      <div class="field-group" style="grid-column: span 2;">
-        <label>Evidence</label>
-        <textarea id="r_evidence">${escapeHtml(c.evidence)}</textarea>
-      </div>
-    </div>
-    <div class="field-row">
-      <div class="field-group" style="grid-column: span 2;">
-        <label>Notes</label>
-        <textarea id="r_notes">${escapeHtml(c.notes)}</textarea>
-      </div>
-    </div>
-    <div class="field-group">
+    <div class="field-group" style="margin-top: 15px;">
       <label>Review Note</label>
       <textarea id="r_review_note" placeholder="Explain what was corrected or why this is being escalated...">${escapeHtml(c.review_note)}</textarea>
     </div>
@@ -154,14 +164,17 @@ function switchFile(index) {
 
 async function resolveCase(caseId) {
   const payload = {
-    officer: document.getElementById("r_officer").value,
-    date: document.getElementById("r_date").value,
-    location: document.getElementById("r_location").value,
+    analyst: document.getElementById("r_analyst").value,
+    investigating_officer: document.getElementById("r_investigating_officer").value,
+    pertains_service_no: document.getElementById("r_pertains_service_no").value,
+    pertains_name: document.getElementById("r_pertains_name").value,
+    pertains_unit: document.getElementById("r_pertains_unit").value,
+    date_deposition: document.getElementById("r_date_deposition").value,
+    date_issuance: document.getElementById("r_date_issuance").value,
+    date_intimation: document.getElementById("r_date_intimation").value,
+    date_return: document.getElementById("r_date_return").value,
     incident_type: document.getElementById("r_incident_type").value,
-    complainant: document.getElementById("r_complainant").value,
-    suspect: document.getElementById("r_suspect").value,
-    evidence: document.getElementById("r_evidence").value,
-    notes: document.getElementById("r_notes").value,
+    command: document.getElementById("r_command").value,
     review_note: document.getElementById("r_review_note").value,
   };
 

@@ -24,9 +24,7 @@ class CaseUpdateRequest(BaseModel):
     pertains_service_no: Optional[str] = None
     pertains_name: Optional[str] = None
     pertains_unit: Optional[str] = None
-    date_receiving: Optional[str] = None
-    date_completion: Optional[str] = None
-    date_dispatch: Optional[str] = None
+
     date_deposition: Optional[str] = None
     date_issuance: Optional[str] = None
     date_intimation: Optional[str] = None
@@ -40,11 +38,9 @@ def count_hits(case, search_term: str) -> int:
     # Normalize search term by replacing spaces and hyphens with a single space
     search_norm = re.sub(r'[\s\-]+', ' ', search_term.lower()).strip()
     
-    # Only count hits inside raw_text, notes, and evidence
+    # Only count hits inside raw_text
     fields = [
-        case.raw_text,
-        case.notes,
-        case.evidence
+        case.raw_text
     ]
     count = 0
     for field in fields:
@@ -57,7 +53,7 @@ def count_hits(case, search_term: str) -> int:
 # ── GET /cases/years — list all available case years ────────────────────────
 @router.get("/years")
 def get_case_years(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    all_cases = db.query(Case.source_folder, Case.case_name, Case.date, Case.created_at).all()
+    all_cases = db.query(Case.source_folder, Case.case_name, Case.date_deposition, Case.created_at).all()
     year_counts = defaultdict(int)
     for c in all_cases:
         yr = "Unknown"
@@ -69,8 +65,8 @@ def get_case_years(db: Session = Depends(get_db), current_user=Depends(get_curre
             m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
             if m:
                 yr = m.group(1)
-        if yr == "Unknown" and c.date:
-            m = re.search(r"\b(20\d\d|19\d\d)\b", c.date)
+        if yr == "Unknown" and c.date_deposition:
+            m = re.search(r"\b(20\d\d|19\d\d)\b", c.date_deposition)
             if m:
                 yr = m.group(1)
         if yr == "Unknown" and c.created_at:
@@ -160,12 +156,12 @@ def list_cases(
                         or_(
                             Case.case_name.ilike(f"%{t}%"),
                             Case.file_name.ilike(f"%{t}%"),
-                            Case.officer.ilike(f"%{t}%"),
-                            Case.location.ilike(f"%{t}%"),
-                            Case.complainant.ilike(f"%{t}%"),
-                            Case.suspect.ilike(f"%{t}%"),
+                            Case.analyst.ilike(f"%{t}%"),
+                            Case.investigating_officer.ilike(f"%{t}%"),
+                            Case.pertains_service_no.ilike(f"%{t}%"),
+                            Case.pertains_name.ilike(f"%{t}%"),
+                            Case.pertains_unit.ilike(f"%{t}%"),
                             Case.incident_type.ilike(f"%{t}%"),
-                            Case.notes.ilike(f"%{t}%"),
                             Case.raw_text.ilike(f"%{t}%"),
                         )
                     )
@@ -208,8 +204,8 @@ def list_cases(
                     m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
                     if m:
                         c_year = m.group(1)
-                if c_year == "Unknown" and c.date:
-                    m = re.search(r"\b(20\d\d|19\d\d)\b", c.date)
+                if c_year == "Unknown" and c.date_deposition:
+                    m = re.search(r"\b(20\d\d|19\d\d)\b", c.date_deposition)
                     if m:
                         c_year = m.group(1)
                 if c_year == "Unknown" and c.created_at:
@@ -274,20 +270,13 @@ def list_cases(
                 "id": c.id,
                 "case_name": c.case_name,
                 "file_name": c.file_name,
-                "officer": c.officer,
-                "date": c.date,
-                "location": c.location,
                 "incident_type": c.incident_type,
-                "complainant": c.complainant,
-                "suspect": c.suspect,
                 "analyst": c.analyst,
                 "investigating_officer": c.investigating_officer,
                 "pertains_service_no": c.pertains_service_no,
                 "pertains_name": c.pertains_name,
                 "pertains_unit": c.pertains_unit,
-                "date_receiving": c.date_receiving,
-                "date_completion": c.date_completion,
-                "date_dispatch": c.date_dispatch,
+
                 "date_deposition": c.date_deposition,
                 "date_issuance": c.date_issuance,
                 "date_intimation": c.date_intimation,
@@ -304,34 +293,72 @@ def list_cases(
         ]
     }
 
-@router.get("/timeline/all")
-def get_timeline(
+
+@router.get("/search/advanced")
+def advanced_search(
+    category: str = Query(..., description="Search category"),
+    term: str = Query(..., description="Search term"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    cases = db.query(Case).order_by(Case.created_at.desc()).all()
+    query = db.query(Case)
+    term = term.strip()
+    if not term:
+        return []
 
-    grouped = defaultdict(list)
+    pattern = f"%{term}%"
+
+    if category == "case_name":
+        query = query.filter(Case.case_name.ilike(pattern))
+    elif category == "incident_type":
+        query = query.filter(Case.incident_type.ilike(pattern))
+    elif category == "command":
+        query = query.filter(Case.command.ilike(pattern))
+    elif category == "analyst":
+        query = query.filter(Case.analyst.ilike(pattern))
+    elif category == "investigating_officer":
+        query = query.filter(Case.investigating_officer.ilike(pattern))
+    elif category == "pertains":
+        query = query.filter(
+            or_(
+                Case.pertains_service_no.ilike(pattern),
+                Case.pertains_name.ilike(pattern),
+                Case.pertains_unit.ilike(pattern)
+            )
+        )
+    elif category == "dates":
+        query = query.filter(
+            or_(
+                Case.date_deposition.ilike(pattern),
+                Case.date_issuance.ilike(pattern),
+                Case.date_intimation.ilike(pattern),
+                Case.date_return.ilike(pattern)
+            )
+        )
+    elif category == "random":
+        query = query.filter(Case.raw_text.ilike(pattern))
+    else:
+        raise HTTPException(status_code=400, detail="Invalid search category")
+
+    cases = query.all()
+    results = []
     for c in cases:
-        date_key = c.created_at.strftime("%Y-%m-%d") if c.created_at else "Unknown"
-        grouped[date_key].append({
+        results.append({
             "id": c.id,
             "case_name": c.case_name,
             "file_name": c.file_name,
-            "officer": c.officer,
-            "location": c.location,
             "incident_type": c.incident_type,
             "status": c.status,
-            "error_flag": c.error_flag,
+            "analyst": c.analyst,
+            "investigating_officer": c.investigating_officer,
+            "pertains_name": c.pertains_name,
+            "command": c.command,
             "created_at": c.created_at,
+            "error_flag": c.error_flag,
+            "uploaded_by": c.uploaded_by
         })
+    return results
 
-    timeline = [
-        {"date": date, "cases": items}
-        for date, items in sorted(grouped.items(), reverse=True)
-    ]
-
-    return {"timeline": timeline, "total": len(cases)}
 
 # ── GET /cases/{id} — single case detail ──────────────────────────────────
 
@@ -380,22 +407,13 @@ def get_case(
         "file_name": case.file_name,
         "file_path": case.file_path,
         "source_folder": case.source_folder,
-        "officer": case.officer,
-        "date": case.date,
-        "location": case.location,
         "incident_type": case.incident_type,
-        "complainant": case.complainant,
-        "suspect": case.suspect,
-        "evidence": case.evidence,
-        "notes": case.notes,
         "analyst": case.analyst,
         "investigating_officer": case.investigating_officer,
         "pertains_service_no": case.pertains_service_no,
         "pertains_name": case.pertains_name,
         "pertains_unit": case.pertains_unit,
-        "date_receiving": case.date_receiving,
-        "date_completion": case.date_completion,
-        "date_dispatch": case.date_dispatch,
+
         "date_deposition": case.date_deposition,
         "date_issuance": case.date_issuance,
         "date_intimation": case.date_intimation,
@@ -688,20 +706,106 @@ def download_case_file(
     )
 
 
+def convert_docx_to_html(file_path: str, search_term: str = None) -> str:
+    from docx import Document
+    import html
+    try:
+        doc = Document(file_path)
+        html_parts = []
+        html_parts.append("""
+        <html>
+        <head>
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: #0f1419;
+                color: #e8eaed;
+                padding: 20px;
+                line-height: 1.6;
+            }
+            p { margin-bottom: 12px; }
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin: 20px 0;
+                background: #1a2129;
+                border: 1px solid #2a3441;
+            }
+            td, th {
+                border: 1px solid #2a3441;
+                padding: 10px;
+                text-align: left;
+            }
+            th {
+                background: #2a3441;
+                color: #4f9cff;
+                font-weight: 600;
+            }
+        </style>
+        </head>
+        <body>
+        """)
+        
+        from docx.text.paragraph import Paragraph
+        from docx.table import Table
+        
+        body_elements = doc.element.body
+        for child in body_elements:
+            tag = child.tag.split('}')[-1]
+            if tag == 'p':
+                p = Paragraph(child, doc)
+                if p.text.strip():
+                    html_parts.append(f"<p>{html.escape(p.text)}</p>")
+            elif tag == 'tbl':
+                t = Table(child, doc)
+                html_parts.append("<table>")
+                for row in t.rows:
+                    html_parts.append("<tr>")
+                    for cell in row.cells:
+                        cell_text = "<br>".join(html.escape(para.text) for para in cell.paragraphs if para.text.strip())
+                        html_parts.append(f"<td>{cell_text}</td>")
+                    html_parts.append("</tr>")
+                html_parts.append("</table>")
+                
+        html_parts.append("</body></html>")
+        raw_html = "\n".join(html_parts)
+        
+        if search_term:
+            escaped_term = html.escape(search_term)
+            pattern = re.compile(r'(<[^>]+>)|(' + re.escape(escaped_term) + r')', re.IGNORECASE)
+            def replace_match(m):
+                if m.group(1):
+                    return m.group(1)
+                return f'<mark class="search-highlight" style="background: rgba(14, 165, 233, 0.45); color: #38bdf8; font-weight: 600; padding: 2px 4px; border-radius: 4px;">{m.group(2)}</mark>'
+            raw_html = pattern.sub(replace_match, raw_html)
+            
+        return raw_html
+    except Exception as e:
+        return f"<html><body><h3>Error rendering document: {html.escape(str(e))}</h3></body></html>"
+
+
 # ── GET /cases/{id}/view-source — view the main file inline ──────────────────
 
 @router.get("/{case_id}/view-source")
 def view_case_source_file(
     case_id: int,
+    search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(verify_token_from_anywhere)
 ):
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, HTMLResponse
     case = db.query(Case).filter(Case.id == case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
         
     safe_path = get_safe_file_path(case.file_path, case.source_folder)
+    
+    if safe_path.lower().endswith(".docx"):
+        html_content = convert_docx_to_html(safe_path, search)
+        return HTMLResponse(
+            content=html_content,
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
         
     mime_type, _ = mimetypes.guess_type(safe_path)
     if not mime_type:
@@ -719,10 +823,11 @@ def view_case_source_file(
 @router.get("/files/{file_id}/view")
 def view_case_file(
     file_id: int,
+    search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user=Depends(verify_token_from_anywhere)
 ):
-    from fastapi.responses import FileResponse
+    from fastapi.responses import FileResponse, HTMLResponse
     case_file = db.query(CaseFile).filter(CaseFile.id == file_id).first()
     if not case_file:
         raise HTTPException(status_code=404, detail="File not found")
@@ -731,6 +836,13 @@ def view_case_file(
     source_folder = case.source_folder if case else None
     
     safe_path = get_safe_file_path(case_file.file_path, source_folder)
+    
+    if safe_path.lower().endswith(".docx"):
+        html_content = convert_docx_to_html(safe_path, search)
+        return HTMLResponse(
+            content=html_content,
+            headers={"Cache-Control": "no-cache, no-store, must-revalidate"}
+        )
         
     mime_type, _ = mimetypes.guess_type(safe_path)
     if not mime_type:

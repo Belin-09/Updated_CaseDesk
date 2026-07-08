@@ -52,7 +52,7 @@ async function loadYears() {
       return;
     }
     const years = await response.json();
-    
+
     let totalAllCount = 0;
     years.forEach(y => {
       totalAllCount += y.count;
@@ -166,19 +166,19 @@ function renderCases(cases) {
           <div style="font-size: 11px; color: #8a93a3; text-transform: uppercase; margin-bottom: 6px; letter-spacing: 0.5px;">Matched in files:</div>
           <div style="display: flex; flex-wrap: wrap; gap: 6px;">
             ${c.matched_files.map(f => {
-              const ext = f.file_name.split('.').pop().toLowerCase();
-              let icon = "📄";
-              if (ext === "pdf") icon = "📕";
-              else if (["png", "jpg", "jpeg"].includes(ext)) icon = "🖼️";
-              
-              return `
+        const ext = f.file_name.split('.').pop().toLowerCase();
+        let icon = "📄";
+        if (ext === "pdf") icon = "📕";
+        else if (["png", "jpg", "jpeg"].includes(ext)) icon = "🖼️";
+
+        return `
                 <span class="matched-file-pill" style="font-size: 12px; background: rgba(79, 156, 255, 0.08); border: 1px solid rgba(79, 156, 255, 0.25); color: #4f9cff; padding: 3px 8px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px;" title="${escapeHtml(f.file_name)}">
                   <span>${icon}</span>
                   <span style="max-width: 140px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHtml(f.file_name)}</span>
                   <span style="background: rgba(79, 156, 255, 0.2); font-size: 10px; font-weight: 700; padding: 1px 4px; border-radius: 3px; margin-left: 2px;">${f.hit_count} hit${f.hit_count !== 1 ? 's' : ''}</span>
                 </span>
               `;
-            }).join("")}
+      }).join("")}
           </div>
         </div>
       `;
@@ -189,7 +189,6 @@ function renderCases(cases) {
         <div class="case-card-header">
           <div>
             <div class="case-card-title">${escapeHtml(c.case_name || c.file_name || 'Untitled Case')}</div>
-            <div class="case-card-id">Case #${c.id}</div>
           </div>
           <div class="case-card-badges">
             ${statusBadge}
@@ -228,21 +227,21 @@ function renderCases(cases) {
 function highlightSearchTerm(text, term) {
   if (text === null || text === undefined || text === "") return "—";
   if (!term) return escapeHtml(text);
-  
+
   const lowerText = text.toLowerCase();
   const lowerTerm = term.toLowerCase();
-  
+
   let result = "";
   let lastIndex = 0;
   let index = lowerText.indexOf(lowerTerm, lastIndex);
-  
+
   while (index !== -1) {
     result += escapeHtml(text.substring(lastIndex, index));
     result += `<mark class="search-highlight">${escapeHtml(text.substring(index, index + term.length))}</mark>`;
     lastIndex = index + term.length;
     index = lowerText.indexOf(lowerTerm, lastIndex);
   }
-  
+
   result += escapeHtml(text.substring(lastIndex));
   return result;
 }
@@ -511,7 +510,7 @@ async function pollScanStatus() {
 
       if (activeScanBanner) {
         if (bannerScanProgress) {
-          bannerScanProgress.textContent = state.status === "completed" 
+          bannerScanProgress.textContent = state.status === "completed"
             ? `Scan completed! ${state.processed} processed, ${state.reprocessed} reprocessed, ${state.skipped} skipped.`
             : `Scan failed: ${state.error}`;
         }

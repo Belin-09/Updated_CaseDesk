@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CaseDesk — Advanced Search</title>
+  <link rel="stylesheet" href="assets/style.css?v=2.5">
+</head>
+<body>
+
+  <nav class="navbar">
+    <div class="navbar-left">
+      <div class="navbar-logo">CaseDesk</div>
+      <div class="navbar-links">
+        <a href="dashboard.html">Dashboard</a>
+        <a href="cases.html">Cases</a>
+        <a href="search.html" class="active">Search</a>
+        <a href="review.html">Review Queue</a>
+      </div>
+    </div>
+    <div class="navbar-right">
+      <span class="navbar-user">Logged in as <span id="navUsername"></span></span>
+      <button class="nav-btn" id="changePasswordBtn">🔑 Change Password</button>
+      <button class="logout-btn" id="logoutBtn">Logout</button>
+    </div>
+  </nav>
+
+  <div class="page-container">
+    <div class="page-header">
+      <div>
+        <h1 class="page-title">Advanced Search</h1>
+        <p class="page-subtitle">Search across case metadata and text contents using structured filters</p>
+      </div>
+    </div>
+
+    <!-- Search Form Panel -->
+    <div class="detail-card" style="margin-bottom: 24px;">
+      <h3 style="margin-bottom: 16px; font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; color: #4f9cff;">Query Configuration</h3>
+      <div class="field-row" style="grid-template-columns: repeat(2, 1fr); gap: 20px; align-items: flex-end;">
+        <div class="field-group">
+          <label style="display: block; font-size: 13px; margin-bottom: 6px; color: #b0b8c4;">Search Field Category</label>
+          <select id="searchCategory" style="width: 100%; padding: 10px 12px; background: #0f1419; border: 1px solid #2a3441; border-radius: 6px; color: #e8eaed; font-size: 14px; outline: none; transition: border-color 0.15s ease;" onfocus="this.style.borderColor='#4f9cff'" onblur="this.style.borderColor='#2a3441'">
+            <option value="case_name">1. Case Number (Folder Name)</option>
+            <option value="incident_type">2. Type of Case</option>
+            <option value="command">3. Military Command</option>
+            <option value="analyst">4. Analyst Name</option>
+            <option value="investigating_officer">5. Investigating Officer</option>
+            <option value="pertains">6. Case Pertains To (Service No, Name, or Unit)</option>
+            <option value="dates">7. Key Dates (Deposition, Issuance, etc.)</option>
+            <option value="random" selected>8. Random Search (Full Text Search)</option>
+          </select>
+        </div>
+        <div class="field-group" style="display: flex; gap: 10px;">
+          <div style="flex: 1;">
+            <label style="display: block; font-size: 13px; margin-bottom: 6px; color: #b0b8c4;">Query Term</label>
+            <input type="text" id="searchTermInput" placeholder="Enter search term..." style="width: 100%; padding: 10px 12px; background: #0f1419; border: 1px solid #2a3441; border-radius: 6px; color: #e8eaed; font-size: 14px; outline: none; transition: border-color 0.15s ease;" onfocus="this.style.borderColor='#4f9cff'" onblur="this.style.borderColor='#2a3441'">
+          </div>
+          <button class="btn-primary" id="runSearchBtn" style="padding: 10px 24px; font-size: 14px; border-radius: 6px; font-weight: 600; height: 39px;">Search Cases</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Search Results Section -->
+    <div class="detail-card">
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #2a3441; padding-bottom: 12px; margin-bottom: 16px;">
+        <h3 style="font-size: 15px; text-transform: uppercase; letter-spacing: 0.5px; color: #4f9cff; margin: 0;">Search Results</h3>
+        <span id="resultsCountBadge" class="badge badge-open" style="display: none; padding: 4px 10px; font-size: 11px;">0 cases found</span>
+      </div>
+
+      <div id="searchResultsContainer">
+        <!-- Default Empty State -->
+        <div id="searchEmptyState" style="text-align: center; padding: 60px 20px; color: #8a93a3;">
+          <div style="font-size: 48px; margin-bottom: 12px; filter: grayscale(1);">🔍</div>
+          <h4 style="color: #e8eaed; font-size: 16px; margin-bottom: 6px;">Ready to Search</h4>
+          <p style="font-size: 13px; max-width: 400px; margin: 0 auto;">Select a category and type a search term above, then click search to view matching cases.</p>
+        </div>
+
+        <!-- Cases Grid -->
+        <div id="casesGrid" class="cases-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 20px;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change Password Modal -->
+  <div class="modal-overlay" id="changePasswordModal">
+    <div class="modal-box" style="width: 400px;">
+      <h2>🔑 Change Password</h2>
+      <div id="forcePasswordNotice" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 6px; padding: 10px; font-size: 12.5px; color: #ff8080; margin-bottom: 15px;">
+        <strong>Notice:</strong> Your administrator has requested that you change your password before continuing.
+      </div>
+      <div class="form-group">
+        <label>Current Password</label>
+        <input type="password" id="currentPasswordInput" placeholder="••••••••">
+      </div>
+      <div class="form-group">
+        <label>New Password</label>
+        <input type="password" id="newPasswordInput" placeholder="••••••••">
+      </div>
+      <div class="error-msg" id="changePasswordStatus"></div>
+      <div class="modal-actions" style="display: flex; gap: 10px; justify-content: flex-end;">
+        <button class="btn-secondary" id="cancelChangePasswordBtn">Cancel</button>
+        <button class="btn-primary" id="confirmChangePasswordBtn">Update Password</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="assets/auth-guard.js"></script>
+  <script src="assets/search.js?v=1.0"></script>
+</body>
+</html>

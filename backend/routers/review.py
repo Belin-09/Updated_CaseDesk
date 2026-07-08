@@ -13,14 +13,17 @@ router = APIRouter(prefix="/review", tags=["Manual Review"])
 # ── Schemas ────────────────────────────────────────────────────────────────
 
 class ResolveRequest(BaseModel):
-    officer: Optional[str] = None
-    date: Optional[str] = None
-    location: Optional[str] = None
+    analyst: Optional[str] = None
+    investigating_officer: Optional[str] = None
+    pertains_service_no: Optional[str] = None
+    pertains_name: Optional[str] = None
+    pertains_unit: Optional[str] = None
+    date_deposition: Optional[str] = None
+    date_issuance: Optional[str] = None
+    date_intimation: Optional[str] = None
+    date_return: Optional[str] = None
     incident_type: Optional[str] = None
-    complainant: Optional[str] = None
-    suspect: Optional[str] = None
-    evidence: Optional[str] = None
-    notes: Optional[str] = None
+    command: Optional[str] = None
     review_note: Optional[str] = None
 
 
@@ -58,9 +61,9 @@ def list_flagged_cases(
                 "case_name": c.case_name,
                 "file_name": c.file_name,
                 "error_reason": c.error_reason,
-                "officer": c.officer,
-                "date": c.date,
-                "location": c.location,
+                "analyst": c.analyst,
+                "investigating_officer": c.investigating_officer,
+                "pertains_name": c.pertains_name,
                 "incident_type": c.incident_type,
                 "uploaded_by": c.uploaded_by,
                 "created_at": c.created_at,
@@ -92,14 +95,17 @@ def get_flagged_case(
         "case_name": case.case_name,
         "error_reason": case.error_reason,
         "raw_text": case.raw_text,
-        "officer": case.officer,
-        "date": case.date,
-        "location": case.location,
+        "analyst": case.analyst,
+        "investigating_officer": case.investigating_officer,
+        "pertains_service_no": case.pertains_service_no,
+        "pertains_name": case.pertains_name,
+        "pertains_unit": case.pertains_unit,
+        "date_deposition": case.date_deposition,
+        "date_issuance": case.date_issuance,
+        "date_intimation": case.date_intimation,
+        "date_return": case.date_return,
         "incident_type": case.incident_type,
-        "complainant": case.complainant,
-        "suspect": case.suspect,
-        "evidence": case.evidence,
-        "notes": case.notes,
+        "command": case.command,
         "review_note": case.review_note,
         "files": [
             {

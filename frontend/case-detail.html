@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CaseDesk — Case Detail</title>
-  <link rel="stylesheet" href="assets/style.css?v=2.2">
+  <link rel="stylesheet" href="assets/style.css?v=2.5">
 </head>
 <body>
 
@@ -14,8 +14,8 @@
       <div class="navbar-links">
         <a href="dashboard.html">Dashboard</a>
         <a href="cases.html" class="active">Cases</a>
+        <a href="search.html">Search</a>
         <a href="review.html">Review Queue</a>
-        <a href="timeline.html">Timeline</a>
       </div>
     </div>
     <div class="navbar-right">
@@ -103,7 +103,13 @@
         </div>
 
         <div class="detail-card">
-          <h3>Document Preview</h3>
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <h3 style="margin: 0;">Document Preview</h3>
+            <div class="search-box-container" style="display: flex; gap: 8px; align-items: center; width: 300px; max-width: 100%;">
+              <input type="text" id="caseSearchInput" placeholder="Search text in documents..." style="flex: 1; padding: 6px 12px; border-radius: 4px; border: 1px solid #2a3441; background: #0f1419; color: #e8eaed; font-size: 13px; outline: none; transition: border-color 0.15s ease;" onfocus="this.style.borderColor='#4f9cff'" onblur="this.style.borderColor='#2a3441'">
+              <button class="btn-primary" id="caseSearchBtn" style="padding: 6px 12px; font-size: 13px; border-radius: 4px;">Search</button>
+            </div>
+          </div>
           <div id="documentPreviewContainer" style="margin-top: 10px;">Loading preview...</div>
           <div class="raw-text-box" id="rawTextBox" style="display: none; margin-top: 10px;">—</div>
         </div>
@@ -123,7 +129,7 @@
       <div>
         <div class="detail-card">
           <h3>Metadata</h3>
-          <div class="meta-row"><span>Case ID</span><span id="m_id"></span></div>
+
           <div class="meta-row"><span>Uploaded By</span><span id="m_uploaded_by"></span></div>
           <div class="meta-row"><span>Created</span><span id="m_created_at"></span></div>
           <div class="meta-row"><span>Last Updated</span><span id="m_updated_at"></span></div>
@@ -143,6 +149,6 @@
   </div>
 
   <script src="assets/auth-guard.js"></script>
-  <script src="assets/case-detail.js?v=1.6"></script>
+  <script src="assets/case-detail.js?v=2.5"></script>
 </body>
 </html>

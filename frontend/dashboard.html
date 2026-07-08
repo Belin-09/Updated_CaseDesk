@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>CaseDesk — Dashboard</title>
-  <link rel="stylesheet" href="assets/style.css?v=2.0">
+  <link rel="stylesheet" href="assets/style.css?v=2.5">
   <script src="assets/chart.umd.min.js"></script>
 </head>
 <body>
@@ -15,8 +15,8 @@
       <div class="navbar-links">
         <a href="dashboard.html" class="active">Dashboard</a>
         <a href="cases.html">Cases</a>
+        <a href="search.html">Search</a>
         <a href="review.html">Review Queue</a>
-        <a href="timeline.html">Timeline</a>
       </div>
     </div>
     <div class="navbar-right">
@@ -171,7 +171,7 @@
   </div>
 
   <script src="assets/auth-guard.js"></script>
-  <script src="assets/analytics.js?v=1.8"></script>
+  <script src="assets/analytics.js?v=1.9"></script>
   <script>
     // User Role and Navigation buttons visibility
     const role = localStorage.getItem("role") || "officer";

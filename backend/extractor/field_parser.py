@@ -1,58 +1,17 @@
 import re
 from typing import Optional
 
-# Try to load spaCy — it's a fallback, not required
-try:
-    import spacy
-    nlp = spacy.load("en_core_web_sm")
-    SPACY_AVAILABLE = True
-except Exception:
-    SPACY_AVAILABLE = False
+
 
 
 # ── Regex Patterns ────────────────────────────────────────────────────────────
 
 PATTERNS = {
-    "officer": [
-        r"(?:investigating\s+)?officer(?:\s+name)?[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)+)",
-        r"(?:officer\s+in\s+charge|OIC)[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)+)",
-        r"(?:prepared\s+by|reported\s+by|investigated\s+by)[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)+)",
-        r"INVESTIGATOR\s+NAME[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*)",
-    ],
-    "date": [
-        r"(?:date\s+of\s+incident|incident\s+date|date)[\s:–\-]+(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
-        r"(?:date\s+of\s+incident|incident\s+date|date)[\s:–\-]+(\d{1,2}\s+\w+\s+\d{4})",
-        r"(?:date\s+of\s+incident|incident\s+date|date)[\s:–\-]+(\w+\s+\d{1,2},?\s+\d{4})",
-        r"DATE[\s:–\-]+(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
-    ],
-    "location": [
-        r"(?:location|place\s+of\s+incident|incident\s+location|address)[\s:–\-]+([A-Za-z0-9\s,\.]+?)(?:\n|$)",
-        r"(?:occurred\s+at|took\s+place\s+at|reported\s+at)[\s:–\-]+([A-Za-z0-9\s,\.]+?)(?:\n|$)",
-        r"LOCATION[\s:–\-]+([A-Za-z0-9\s,\.]+?)(?:\n|$)",
-    ],
     "incident_type": [
         r"(?:incident\s+type|type\s+of\s+incident|nature\s+of\s+(?:incident|case)|offence|offense)[\s:–\-]+([A-Za-z\s]+?)(?:\n|$)",
         r"(?:case\s+type|crime\s+type)[\s:–\-]+([A-Za-z\s]+?)(?:\n|$)",
         r"INCIDENT\s+TYPE[\s:–\-]+([A-Za-z\s]+?)(?:\n|$)",
         r"BRIEF\s+OF\s+THE\s+CASE[\s:–\-]+([A-Za-z\s]+?)(?:\n|$)",
-    ],
-    "complainant": [
-        r"(?:complainant|complaint\s+by|filed\s+by|reported\s+by)[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)+)",
-        r"(?:victim|plaintiff)[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)+)",
-        r"COMPLAINANT[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)*)",
-    ],
-    "suspect": [
-        r"(?:suspect|accused|alleged|defendant|perpetrator)[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)+)",
-        r"(?:name\s+of\s+suspect|suspect\s+name)[\s:–\-]+([A-Z][a-zA-Z]+(?:\s[A-Z][a-zA-Z]+)+)",
-        r"SUSPECT[\s:–\-]+([A-Za-z]+(?:\s[A-Za-z]+)*)",
-    ],
-    "evidence": [
-        r"(?:evidence|exhibits?|items?\s+seized|material\s+evidence)[\s:–\-]+([A-Za-z0-9\s,\.;\-]+?)(?:\n\n|\n[A-Z]|$)",
-        r"EVIDENCE[\s:–\-]+([A-Za-z0-9\s,\.;\-]+?)(?:\n\n|\n[A-Z]|$)",
-    ],
-    "notes": [
-        r"(?:notes?|remarks?|additional\s+(?:info|information|details?)|comments?)[\s:–\-]+([A-Za-z0-9\s,\.;\-]+?)(?:\n\n|\n[A-Z]|$)",
-        r"NOTES?[\s:–\-]+([A-Za-z0-9\s,\.;\-]+?)(?:\n\n|\n[A-Z]|$)",
     ],
 }
 
@@ -70,24 +29,7 @@ def extract_with_regex(field: str, text: str) -> Optional[str]:
     return None
 
 
-# ── spaCy Fallback ────────────────────────────────────────────────────────────
 
-def extract_with_spacy(field: str, text: str) -> Optional[str]:
-    """Use spaCy NER as fallback for officer and location."""
-    if not SPACY_AVAILABLE:
-        return None
-
-    doc = nlp(text[:5000])  # limit for performance
-
-    if field == "officer":
-        persons = [ent.text for ent in doc.ents if ent.label_ == "PERSON"]
-        return persons[0] if persons else None
-
-    if field == "location":
-        places = [ent.text for ent in doc.ents if ent.label_ in ("GPE", "LOC")]
-        return places[0] if places else None
-
-    return None
 
 def clean_value(value: str) -> str:
     """Remove newlines and anything after them from extracted values."""
@@ -108,14 +50,22 @@ COMMAND_KEYWORDS = [
     ("Western", [r"western\s+(?:command|comd)", r"\bwestern\b"]),
 ]
 
-def extract_command(text: str) -> Optional[str]:
-    """Identify military command from text."""
-    if not text:
+def extract_command(hash_text: str) -> Optional[str]:
+    """Identify military command from 'Copy to' block in the hash letter."""
+    if not hash_text:
         return None
-    for cmd_name, patterns in COMMAND_KEYWORDS:
-        for pat in patterns:
-            if re.search(pat, text, re.IGNORECASE):
-                return cmd_name
+    lines = hash_text.split("\n")
+    copy_idx = -1
+    for i, line in enumerate(lines):
+        if "copy to" in line.lower():
+            copy_idx = i
+            break
+    if copy_idx != -1:
+        subsequent_text = "\n".join(lines[copy_idx+1 : copy_idx+7])
+        for cmd_name, patterns in COMMAND_KEYWORDS:
+            for pat in patterns:
+                if re.search(pat, subsequent_text, re.IGNORECASE):
+                    return cmd_name
     return None
 
 def extract_suspected_pio_numbers(text: str) -> tuple[str, int]:
@@ -136,13 +86,19 @@ def extract_suspected_pio_numbers(text: str) -> tuple[str, int]:
     numbers_str = ", ".join(sorted(found_numbers))
     return numbers_str, len(found_numbers)
 
-def classify_case_type(raw_text: str, extracted_type: Optional[str]) -> str:
-    """Classify case into Int (Cyber Espionage), Int (Social Media violation), or DV / Misc."""
-    combined = f"{extracted_type or ''} {raw_text or ''}".lower()
-    if re.search(r"cyber\s*espionage|espionage|cyber\s*attack", combined):
-        return "Int (Cyber Espionage)"
-    if re.search(r"social\s*media|whatsapp|facebook|telegram|instagram|honeytrap", combined):
-        return "Int (Social Media violation)"
+def classify_case_type(covering_text: str) -> str:
+    """Classify case based on covering letter text under 'a case of' phrase."""
+    if not covering_text:
+        return "DV / Misc"
+    
+    match = re.search(r"a\s+case\s+of\s+(.+)", covering_text, re.IGNORECASE)
+    if match:
+        after_text = match.group(1).lower()
+        if "cyber espionage" in after_text or "espionage" in after_text:
+            return "Int (Cyber Espionage)"
+        if "social media" in after_text or "honeytrap" in after_text:
+            return "Int (Social Media violation)"
+            
     return "DV / Misc"
 
 def extract_pertains_service_no(text: str) -> Optional[str]:
@@ -194,7 +150,7 @@ def extract_ro_pattern(text: str) -> Optional[dict]:
     """
     if not text:
         return None
-    pattern = r"\br/o\s+([A-Z0-9\-\s]{4,15}?)\s+([^of\n]+?)\s+of\s+([^(\n]+)"
+    pattern = r"\br/o\s+([A-Z0-9\-\s]{4,15}?)\s+(.+?)\s+of\s+([^(\n]+)"
     match = re.search(pattern, text, re.IGNORECASE)
     if match:
         service_no = match.group(1).strip()
@@ -282,14 +238,11 @@ def extract_investigating_officer(files_dict: dict) -> Optional[str]:
 def extract_deposition_date(hash_text: str) -> Optional[str]:
     if not hash_text:
         return None
-    patterns = [
-        r"cfi\s+on\s+(\d{1,2}\s+[A-Za-z]{3,10}\s+\d{4})",
-        r"cfi\s+on\s+(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})"
-    ]
-    for pat in patterns:
-        m = re.search(pat, hash_text, re.IGNORECASE)
-        if m:
-            return m.group(1).strip()
+    # Check for point number 2., then take date between "on" and "at"
+    pattern = r"\b2\..*?\bon\b\s+(.+?)\s+\bat\b"
+    m = re.search(pattern, hash_text, re.IGNORECASE | re.DOTALL)
+    if m:
+        return m.group(1).strip()
     return None
 
 def extract_issuance_date(return_doc_text: str) -> Optional[str]:
@@ -325,60 +278,52 @@ def parse_fields(raw_text: str) -> dict:
     """
     Extract all fields from raw text including Command, PIO numbers, and Case Type.
     """
-    fields = {}
-    spacy_fallback_fields = {"officer", "location"}
-
-    for field in PATTERNS:
-        value = extract_with_regex(field, raw_text)
-
-        if value is None and field in spacy_fallback_fields:
-            value = extract_with_spacy(field, raw_text)
-
-        fields[field] = clean_value(value) if value else None
-
-    # Custom Analytics fields
-    fields["command"] = extract_command(raw_text)
-    pio_str, pio_count = extract_suspected_pio_numbers(raw_text)
-    fields["suspected_pio_numbers"] = pio_str
-    fields["suspected_pio_count"] = pio_count
-    fields["incident_type"] = classify_case_type(raw_text, fields.get("incident_type"))
-
-    # Segment documents
+    # Segment documents first
     files_dict = split_merged_text_by_file(raw_text)
 
-    # 1. Analyst Name
-    fields["analyst"] = extract_analyst_name(files_dict)
+    # 1. Covering Letter (for case classification)
+    covering_text = ""
+    for fname, txt in files_dict.items():
+        if "covering" in fname and "letter" in fname:
+            covering_text = txt
+            break
 
-    # 2. Investigating Officer
-    fields["investigating_officer"] = extract_investigating_officer(files_dict)
-
-    # 3. Case pertains to (search only hash/covering/letter file first)
+    # 2. Hash Letter (for command and pertains/deposition date)
     hash_text = ""
-    # Try exact match for "hash" first
     for fname, txt in files_dict.items():
         if "hash" in fname:
             hash_text = txt
             break
-    if not hash_text:
-        # Fallback to covering/letter
-        for fname, txt in files_dict.items():
-            if "covering" in fname or ("letter" in fname and "noting" not in fname):
-                hash_text = txt
-                break
-                
-    text_for_pertains = hash_text if hash_text else raw_text
 
-    ro_data = extract_ro_pattern(text_for_pertains)
+    fields = {}
+
+    # Custom Analytics fields
+    fields["command"] = extract_command(hash_text)
+    
+    pio_str, pio_count = extract_suspected_pio_numbers(raw_text)
+    fields["suspected_pio_numbers"] = pio_str
+    fields["suspected_pio_count"] = pio_count
+    
+    fields["incident_type"] = classify_case_type(covering_text)
+
+    # 3. Analyst Name
+    fields["analyst"] = extract_analyst_name(files_dict)
+
+    # 4. Investigating Officer
+    fields["investigating_officer"] = extract_investigating_officer(files_dict)
+
+    # 5. Case pertains to (search strictly hash letter via R/O pattern)
+    ro_data = extract_ro_pattern(hash_text)
     if ro_data:
         fields["pertains_service_no"] = ro_data["pertains_service_no"]
         fields["pertains_name"] = ro_data["pertains_name"]
         fields["pertains_unit"] = ro_data["pertains_unit"]
     else:
-        fields["pertains_service_no"] = extract_pertains_service_no(text_for_pertains)
-        fields["pertains_name"] = extract_pertains_name(text_for_pertains)
-        fields["pertains_unit"] = extract_pertains_unit(text_for_pertains)
+        fields["pertains_service_no"] = None
+        fields["pertains_name"] = None
+        fields["pertains_unit"] = None
 
-    # 4. Dates
+    # 6. Dates
     fields["date_deposition"] = extract_deposition_date(hash_text)
 
     # Find return document

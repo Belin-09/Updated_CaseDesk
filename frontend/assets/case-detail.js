@@ -1,6 +1,14 @@
 const params = new URLSearchParams(window.location.search);
 const caseId = params.get("id");
-const searchTerm = params.get("search");
+let searchTerm = params.get("search");
+
+// Set search input value if search term exists in URL
+window.addEventListener("DOMContentLoaded", () => {
+  const searchInput = document.getElementById("caseSearchInput");
+  if (searchInput && searchTerm) {
+    searchInput.value = searchTerm;
+  }
+});
 
 if (!caseId) {
   window.location.href = "dashboard.html";
@@ -14,7 +22,7 @@ if (searchTerm) {
   }
 }
 
-const fieldIds = ["analyst", "investigating_officer", "pertains_service_no", "pertains_name", "pertains_unit", "date_receiving", "date_completion", "date_dispatch", "date_deposition", "date_issuance", "date_intimation", "date_return", "status"];
+const fieldIds = ["analyst", "investigating_officer", "pertains_service_no", "pertains_name", "pertains_unit", "date_deposition", "date_issuance", "date_intimation", "date_return", "status"];
 
 async function loadCase() {
   const response = await apiFetch(`/cases/${caseId}`);
@@ -27,8 +35,8 @@ async function loadCase() {
 
   const c = await response.json();
 
-  document.getElementById("caseTitle").textContent = c.case_name || c.file_name || `Case #${c.id}`;
-  document.getElementById("caseSubtitle").textContent = `Case #${c.id}`;
+  document.getElementById("caseTitle").textContent = c.case_name || c.file_name || 'Untitled Case';
+  document.getElementById("caseSubtitle").textContent = "";
 
   fieldIds.forEach(f => {
     const el = document.getElementById(`f_${f}`);
@@ -95,7 +103,7 @@ async function loadCase() {
     sourceFilesCard.style.display = "none";
   }
 
-  document.getElementById("m_id").textContent = c.id;
+
   document.getElementById("m_uploaded_by").textContent = c.uploaded_by || "—";
   document.getElementById("m_created_at").textContent = formatDateTime(c.created_at);
   document.getElementById("m_updated_at").textContent = formatDateTime(c.updated_at);
@@ -344,9 +352,13 @@ function loadPreview(fileName, fileId, rawTextContent) {
   if (fileName) {
     const ext = fileName.split('.').pop().toLowerCase();
     const currentToken = localStorage.getItem("token");
-    const viewUrl = fileId === 0 
+    let viewUrl = fileId === 0 
       ? `${API_BASE}/cases/${window.currentCaseId}/view-source?token=${currentToken}&_t=${Date.now()}`
       : `${API_BASE}/cases/files/${fileId}/view?token=${currentToken}&_t=${Date.now()}`;
+
+    if (searchTerm) {
+      viewUrl += `&search=${encodeURIComponent(searchTerm)}`;
+    }
 
     if (ext === "pdf") {
       let finalUrl = viewUrl;
@@ -384,8 +396,9 @@ function loadPreview(fileName, fileId, rawTextContent) {
       }
     } else {
       previewContainer.innerHTML = `
+        <iframe src="${viewUrl}" class="docx-preview-iframe" style="width:100%; height:600px; border:1px solid #2a3441; border-radius:6px; background:#0f1419; margin-bottom: 12px;"></iframe>
         <div style="background:#1e293b; color:#38bdf8; padding:10px 14px; border-radius:6px; font-size:13px; margin-bottom:12px; font-weight:600; border:1px solid rgba(56, 189, 248, 0.2);">
-          📄 Word Document Preview (extracted text is shown below):
+          📄 Word Document Text Preview (extracted text is shown below):
         </div>
       `;
       rawTextBox.style.display = "block";
@@ -627,6 +640,51 @@ if (reprocessBtn) {
     }
   });
 }
+
+// ── Case Search ──────────────────────────────────────────────────────────
+
+function triggerCaseSearch() {
+  const input = document.getElementById("caseSearchInput");
+  if (!input) return;
+  
+  const term = input.value.trim();
+  searchTerm = term;
+  
+  const newUrl = new URL(window.location.href);
+  if (term) {
+    newUrl.searchParams.set("search", term);
+  } else {
+    newUrl.searchParams.delete("search");
+  }
+  window.history.pushState({}, "", newUrl.toString());
+  
+  const backLink = document.querySelector(".back-link");
+  if (backLink) {
+    if (term) {
+      backLink.href = `dashboard.html?search=${encodeURIComponent(term)}`;
+    } else {
+      backLink.href = "dashboard.html";
+    }
+  }
+  
+  loadCase();
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const searchBtn = document.getElementById("caseSearchBtn");
+  const searchInput = document.getElementById("caseSearchInput");
+  
+  if (searchBtn) {
+    searchBtn.addEventListener("click", triggerCaseSearch);
+  }
+  if (searchInput) {
+    searchInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter") {
+        triggerCaseSearch();
+      }
+    });
+  }
+});
 
 // ── Init ─────────────────────────────────────────────────────────────────
 

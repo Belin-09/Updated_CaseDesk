@@ -120,14 +120,7 @@ def upload_file(
         file_path=relative_path,
         uploaded_by=current_user.username,
         raw_text=raw_text,
-        officer=fields.get("officer"),
-        date=fields.get("date"),
-        location=fields.get("location"),
         incident_type=fields.get("incident_type"),
-        complainant=fields.get("complainant"),
-        suspect=fields.get("suspect"),
-        evidence=fields.get("evidence"),
-        notes=fields.get("notes"),
         status="open",
         error_flag=error_flag,
         error_reason=error_reason,
@@ -136,9 +129,10 @@ def upload_file(
         pertains_service_no=fields.get("pertains_service_no"),
         pertains_name=fields.get("pertains_name"),
         pertains_unit=fields.get("pertains_unit"),
-        date_receiving=fields.get("date_receiving"),
-        date_completion=fields.get("date_completion"),
-        date_dispatch=fields.get("date_dispatch"),
+        date_deposition=fields.get("date_deposition"),
+        date_issuance=fields.get("date_issuance"),
+        date_intimation=fields.get("date_intimation"),
+        date_return=fields.get("date_return"),
     )
     db.add(case)
     db.commit()
@@ -230,14 +224,7 @@ def process_single_folder(folder: dict, username: str):
 
             existing.file_name = data["file_name"]
             existing.raw_text = data["raw_text"]
-            existing.officer = data["officer"]
-            existing.date = data["date"]
-            existing.location = data["location"]
             existing.incident_type = data["incident_type"]
-            existing.complainant = data["complainant"]
-            existing.suspect = data["suspect"]
-            existing.evidence = data["evidence"]
-            existing.notes = data["notes"]
             existing.command = data.get("command")
             existing.suspected_pio_numbers = data.get("suspected_pio_numbers")
             existing.suspected_pio_count = data.get("suspected_pio_count", 0)
@@ -251,9 +238,11 @@ def process_single_folder(folder: dict, username: str):
             existing.pertains_service_no = data.get("pertains_service_no")
             existing.pertains_name = data.get("pertains_name")
             existing.pertains_unit = data.get("pertains_unit")
-            existing.date_receiving = data.get("date_receiving")
-            existing.date_completion = data.get("date_completion")
-            existing.date_dispatch = data.get("date_dispatch")
+
+            existing.date_deposition = data.get("date_deposition")
+            existing.date_issuance = data.get("date_issuance")
+            existing.date_intimation = data.get("date_intimation")
+            existing.date_return = data.get("date_return")
             existing.updated_at = datetime.utcnow()
 
             # Replace old per-file records with fresh ones
@@ -300,14 +289,7 @@ def process_single_folder(folder: dict, username: str):
                 file_path=data["file_path"],
                 uploaded_by=username,
                 raw_text=data["raw_text"],
-                officer=data["officer"],
-                date=data["date"],
-                location=data["location"],
                 incident_type=data["incident_type"],
-                complainant=data["complainant"],
-                suspect=data["suspect"],
-                evidence=data["evidence"],
-                notes=data["notes"],
                 command=data.get("command"),
                 suspected_pio_numbers=data.get("suspected_pio_numbers"),
                 suspected_pio_count=data.get("suspected_pio_count", 0),
@@ -321,9 +303,11 @@ def process_single_folder(folder: dict, username: str):
                 pertains_service_no=data.get("pertains_service_no"),
                 pertains_name=data.get("pertains_name"),
                 pertains_unit=data.get("pertains_unit"),
-                date_receiving=data.get("date_receiving"),
-                date_completion=data.get("date_completion"),
-                date_dispatch=data.get("date_dispatch"),
+
+                date_deposition=data.get("date_deposition"),
+                date_issuance=data.get("date_issuance"),
+                date_intimation=data.get("date_intimation"),
+                date_return=data.get("date_return"),
             )
             db.add(case)
             db.commit()
