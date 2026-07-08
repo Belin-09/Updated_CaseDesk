@@ -8,7 +8,7 @@ class Case(Base):
     __tablename__ = "cases"
 
     id             = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    file_name      = Column(String(255))
+    file_name      = Column(Text)
     file_path      = Column(String(500))
 
     # Extracted fields
@@ -63,6 +63,10 @@ class Case(Base):
     date_receiving = Column(String(100), nullable=True)
     date_completion = Column(String(100), nullable=True)
     date_dispatch = Column(String(100), nullable=True)
+    date_deposition = Column(String(100), nullable=True)
+    date_issuance = Column(String(100), nullable=True)
+    date_intimation = Column(String(100), nullable=True)
+    date_return = Column(String(100), nullable=True)
 
 
 class CaseFile(Base):

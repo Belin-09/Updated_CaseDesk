@@ -124,6 +124,29 @@ def _build_pdf(case: Case, files: list, file_path: str):
     ]))
     elements.append(overview_table)
 
+    # ── Custom fields table ─────────────────────────────────────────────
+    elements.append(Paragraph("Case Details", section_style))
+    custom_data = [
+        ["Analyst", case.analyst or "—", "Investigating Officer", case.investigating_officer or "—"],
+        ["Pertains Service No", case.pertains_service_no or "—", "Pertains Name", case.pertains_name or "—"],
+        ["Pertains Unit", case.pertains_unit or "—", "Military Command", case.command or "—"],
+        ["Deposition Date", case.date_deposition or "—", "Hash Issuance Date", case.date_issuance or "—"],
+        ["Intimation Date", case.date_intimation or "—", "Return Date", case.date_return or "—"],
+    ]
+    custom_table = Table(custom_data, colWidths=[110, 120, 110, 120])
+    custom_table.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4f9cff")),
+        ("TEXTCOLOR", (2, 0), (2, -1), colors.HexColor("#4f9cff")),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+        ("TOPPADDING", (0, 0), (-1, -1), 6),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e0e0e0")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    elements.append(custom_table)
+
     # ── Evidence ─────────────────────────────────────────────────────────
     elements.append(Paragraph("Evidence", section_style))
     elements.append(Paragraph(case.evidence or "No evidence recorded.", body_style))

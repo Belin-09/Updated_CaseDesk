@@ -27,6 +27,10 @@ class CaseUpdateRequest(BaseModel):
     date_receiving: Optional[str] = None
     date_completion: Optional[str] = None
     date_dispatch: Optional[str] = None
+    date_deposition: Optional[str] = None
+    date_issuance: Optional[str] = None
+    date_intimation: Optional[str] = None
+    date_return: Optional[str] = None
     status: Optional[str] = None
 
 
@@ -284,6 +288,10 @@ def list_cases(
                 "date_receiving": c.date_receiving,
                 "date_completion": c.date_completion,
                 "date_dispatch": c.date_dispatch,
+                "date_deposition": c.date_deposition,
+                "date_issuance": c.date_issuance,
+                "date_intimation": c.date_intimation,
+                "date_return": c.date_return,
                 "status": c.status,
                 "error_flag": c.error_flag,
                 "error_reason": c.error_reason,
@@ -388,6 +396,10 @@ def get_case(
         "date_receiving": case.date_receiving,
         "date_completion": case.date_completion,
         "date_dispatch": case.date_dispatch,
+        "date_deposition": case.date_deposition,
+        "date_issuance": case.date_issuance,
+        "date_intimation": case.date_intimation,
+        "date_return": case.date_return,
         "raw_text": case.raw_text,
         "status": case.status,
         "error_flag": case.error_flag,
@@ -473,6 +485,12 @@ def reprocess_case(
     case.pertains_service_no = fields.get("pertains_service_no")
     case.pertains_name = fields.get("pertains_name")
     case.pertains_unit = fields.get("pertains_unit")
+    case.analyst = fields.get("analyst")
+    case.investigating_officer = fields.get("investigating_officer")
+    case.date_deposition = fields.get("date_deposition")
+    case.date_issuance = fields.get("date_issuance")
+    case.date_intimation = fields.get("date_intimation")
+    case.date_return = fields.get("date_return")
     case.command = fields.get("command")
     case.suspected_pio_numbers = fields.get("suspected_pio_numbers")
     case.suspected_pio_count = fields.get("suspected_pio_count", 0)
@@ -497,6 +515,12 @@ def reprocess_case(
             "pertains_service_no": case.pertains_service_no,
             "pertains_name": case.pertains_name,
             "pertains_unit": case.pertains_unit,
+            "analyst": case.analyst,
+            "investigating_officer": case.investigating_officer,
+            "date_deposition": case.date_deposition,
+            "date_issuance": case.date_issuance,
+            "date_intimation": case.date_intimation,
+            "date_return": case.date_return,
         }
     }
 

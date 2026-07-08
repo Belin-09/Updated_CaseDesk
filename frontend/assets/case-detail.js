@@ -14,7 +14,7 @@ if (searchTerm) {
   }
 }
 
-const fieldIds = ["analyst", "investigating_officer", "pertains_service_no", "pertains_name", "pertains_unit", "date_receiving", "date_completion", "date_dispatch", "status"];
+const fieldIds = ["analyst", "investigating_officer", "pertains_service_no", "pertains_name", "pertains_unit", "date_receiving", "date_completion", "date_dispatch", "date_deposition", "date_issuance", "date_intimation", "date_return", "status"];
 
 async function loadCase() {
   const response = await apiFetch(`/cases/${caseId}`);

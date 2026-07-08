@@ -212,6 +212,113 @@ def extract_ro_pattern(text: str) -> Optional[dict]:
             }
     return None
 
+def split_merged_text_by_file(merged_text: str) -> dict:
+    if not merged_text:
+        return {}
+    pattern = r"\n\n--- (.+?) ---\n"
+    parts = re.split(pattern, "\n\n" + merged_text)
+    files_dict = {}
+    if len(parts) > 1:
+        for i in range(1, len(parts), 2):
+            filename = parts[i].strip().lower()
+            content = parts[i+1] if i+1 < len(parts) else ""
+            files_dict[filename] = content.strip()
+    else:
+        files_dict["unnamed"] = merged_text.strip()
+    return files_dict
+
+def extract_analyst_name(files_dict: dict) -> Optional[str]:
+    for fname, text in files_dict.items():
+        if "noting" in fname and "sheet" in fname:
+            lines = text.split("\n")
+            for i, line in enumerate(lines):
+                if "digital forensic analyst" in line.lower():
+                    for j in range(i - 1, max(-1, i - 5), -1):
+                        m = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[j])
+                        if m:
+                            val = m.group(1).strip()
+                            if val:
+                                return val
+    return None
+
+def extract_investigating_officer(files_dict: dict) -> Optional[str]:
+    for fname, text in files_dict.items():
+        if "covering" in fname and "letter" in fname:
+            lines = text.split("\n")
+            for i, line in enumerate(lines):
+                if "investigating officer" in line.lower():
+                    rank = None
+                    name = None
+                    rank_idx = -1
+                    ranks_regex = r"\b(Lt\s+Col|Col|Major|Capt|Lt|Sub|Hav|Nk|L/Nk|Sep|Col|Brig|Maj\s+Gen|Gen|Havildar|Naik|Sepoy|Lt-Col|Lt\.?\s*Col\.?)\b"
+                    for j in range(i - 1, max(-1, i - 6), -1):
+                        m_rank = re.search(ranks_regex, lines[j], re.IGNORECASE)
+                        if m_rank:
+                            rank = m_rank.group(1).strip()
+                            rank_idx = j
+                            break
+                    if rank_idx != -1:
+                        for k in range(rank_idx - 1, max(-1, rank_idx - 5), -1):
+                            m_name = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[k])
+                            if m_name:
+                                name = m_name.group(1).strip()
+                                break
+                    else:
+                        for k in range(i - 1, max(-1, i - 6), -1):
+                            m_name = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[k])
+                            if m_name:
+                                name = m_name.group(1).strip()
+                                break
+                    if rank and name:
+                        if name.lower().startswith(rank.lower()):
+                            return name
+                        return f"{rank} {name}"
+                    elif name:
+                        return name
+                    elif rank:
+                        return rank
+    return None
+
+def extract_deposition_date(hash_text: str) -> Optional[str]:
+    if not hash_text:
+        return None
+    patterns = [
+        r"cfi\s+on\s+(\d{1,2}\s+[A-Za-z]{3,10}\s+\d{4})",
+        r"cfi\s+on\s+(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})"
+    ]
+    for pat in patterns:
+        m = re.search(pat, hash_text, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return None
+
+def extract_issuance_date(return_doc_text: str) -> Optional[str]:
+    if not return_doc_text:
+        return None
+    patterns = [
+        r"taken\s+over\s+.*?\s+on\s+(\d{1,2}\s+[A-Za-z]{3,10}\s+\d{4})",
+        r"taken\s+over\s+.*?\s+on\s+(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})"
+    ]
+    for pat in patterns:
+        m = re.search(pat, return_doc_text, re.IGNORECASE)
+        if m:
+            return m.group(1).strip()
+    return None
+
+def extract_intimation_date(return_doc_text: str) -> Optional[str]:
+    if not return_doc_text:
+        return None
+    patterns = [
+        r"1\.1\s+.*?dt\s+(\d{1,2}\s+[A-Za-z]{3,10}\s+\d{4})",
+        r"1\.1\s+.*?dt\s+(\d{1,2}[\/\-\.]\d{1,2}[\/\-\.]\d{2,4})",
+        r"refs\b.*?dt\s+(\d{1,2}\s+[A-Za-z]{3,10}\s+\d{4})"
+    ]
+    for pat in patterns:
+        m = re.search(pat, return_doc_text, re.IGNORECASE | re.DOTALL)
+        if m:
+            return m.group(1).strip()
+    return None
+
 # ── Main Parser ───────────────────────────────────────────────────────────────
 
 def parse_fields(raw_text: str) -> dict:
@@ -236,22 +343,54 @@ def parse_fields(raw_text: str) -> dict:
     fields["suspected_pio_count"] = pio_count
     fields["incident_type"] = classify_case_type(raw_text, fields.get("incident_type"))
 
-    # Custom pertains-to fields
-    ro_data = extract_ro_pattern(raw_text)
+    # Segment documents
+    files_dict = split_merged_text_by_file(raw_text)
+
+    # 1. Analyst Name
+    fields["analyst"] = extract_analyst_name(files_dict)
+
+    # 2. Investigating Officer
+    fields["investigating_officer"] = extract_investigating_officer(files_dict)
+
+    # 3. Case pertains to (search only hash/covering/letter file first)
+    hash_text = ""
+    # Try exact match for "hash" first
+    for fname, txt in files_dict.items():
+        if "hash" in fname:
+            hash_text = txt
+            break
+    if not hash_text:
+        # Fallback to covering/letter
+        for fname, txt in files_dict.items():
+            if "covering" in fname or ("letter" in fname and "noting" not in fname):
+                hash_text = txt
+                break
+                
+    text_for_pertains = hash_text if hash_text else raw_text
+
+    ro_data = extract_ro_pattern(text_for_pertains)
     if ro_data:
         fields["pertains_service_no"] = ro_data["pertains_service_no"]
         fields["pertains_name"] = ro_data["pertains_name"]
         fields["pertains_unit"] = ro_data["pertains_unit"]
     else:
-        fields["pertains_service_no"] = extract_pertains_service_no(raw_text)
-        fields["pertains_name"] = extract_pertains_name(raw_text)
-        fields["pertains_unit"] = extract_pertains_unit(raw_text)
-        
-    fields["analyst"] = None
-    fields["investigating_officer"] = None
-    fields["date_receiving"] = None
-    fields["date_completion"] = None
-    fields["date_dispatch"] = None
+        fields["pertains_service_no"] = extract_pertains_service_no(text_for_pertains)
+        fields["pertains_name"] = extract_pertains_name(text_for_pertains)
+        fields["pertains_unit"] = extract_pertains_unit(text_for_pertains)
+
+    # 4. Dates
+    fields["date_deposition"] = extract_deposition_date(hash_text)
+
+    # Find return document
+    return_doc_text = ""
+    for fname, txt in files_dict.items():
+        if "return" in fname or "artefact" in fname or "artifact" in fname:
+            return_doc_text = txt
+            break
+
+    fields["date_issuance"] = extract_issuance_date(return_doc_text)
+    fields["date_intimation"] = extract_intimation_date(return_doc_text)
+    fields["date_return"] = None
 
     return fields
 
@@ -260,5 +399,9 @@ def parse_fields(raw_text: str) -> dict:
 
 def count_extracted_fields(fields: dict) -> int:
     """Count how many fields were successfully extracted (not None)."""
-    extractable_fields = ["pertains_service_no", "pertains_name", "pertains_unit"]
+    extractable_fields = [
+        "pertains_service_no", "pertains_name", "pertains_unit",
+        "analyst", "investigating_officer",
+        "date_deposition", "date_issuance", "date_intimation"
+    ]
     return sum(1 for k in extractable_fields if fields.get(k) is not None)

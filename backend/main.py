@@ -32,11 +32,13 @@ app = FastAPI(title="CaseDesk API", version="1.0")
 def backfill_pertains_fields():
     db = SessionLocal()
     try:
-        # Fetch all cases where pertains fields are NULL
+        # Fetch all cases where pertains/analyst fields are NULL
         cases = db.query(models.Case).filter(
-            (models.Case.pertains_service_no == None) &
-            (models.Case.pertains_name == None) &
-            (models.Case.pertains_unit == None)
+            (models.Case.pertains_service_no == None) |
+            (models.Case.pertains_name == None) |
+            (models.Case.pertains_unit == None) |
+            (models.Case.analyst == None) |
+            (models.Case.date_deposition == None)
         ).all()
         
         if not cases:
@@ -62,6 +64,12 @@ def backfill_pertains_fields():
                 case.pertains_service_no = fields.get("pertains_service_no")
                 case.pertains_name = fields.get("pertains_name")
                 case.pertains_unit = fields.get("pertains_unit")
+                case.analyst = fields.get("analyst")
+                case.investigating_officer = fields.get("investigating_officer")
+                case.date_deposition = fields.get("date_deposition")
+                case.date_issuance = fields.get("date_issuance")
+                case.date_intimation = fields.get("date_intimation")
+                case.date_return = fields.get("date_return")
                 
                 # Also update analytics columns if empty
                 if not case.command:
@@ -99,7 +107,12 @@ def startup_db_init():
         "ALTER TABLE cases ADD COLUMN pertains_unit VARCHAR(255) NULL",
         "ALTER TABLE cases ADD COLUMN date_receiving VARCHAR(100) NULL",
         "ALTER TABLE cases ADD COLUMN date_completion VARCHAR(100) NULL",
-        "ALTER TABLE cases ADD COLUMN date_dispatch VARCHAR(100) NULL"
+        "ALTER TABLE cases ADD COLUMN date_dispatch VARCHAR(100) NULL",
+        "ALTER TABLE cases ADD COLUMN date_deposition VARCHAR(100) NULL",
+        "ALTER TABLE cases ADD COLUMN date_issuance VARCHAR(100) NULL",
+        "ALTER TABLE cases ADD COLUMN date_intimation VARCHAR(100) NULL",
+        "ALTER TABLE cases ADD COLUMN date_return VARCHAR(100) NULL",
+        "ALTER TABLE cases MODIFY file_name TEXT NULL"
     ]
     with engine.connect() as conn:
         for sql in migrations:
@@ -108,6 +121,29 @@ def startup_db_init():
                 conn.commit()
             except Exception:
                 pass  # Column already exists
+
+    # 3. Copy old date values to new columns for compatibility
+    db_copy = SessionLocal()
+    try:
+        updated = False
+        cases = db_copy.query(models.Case).all()
+        for case in cases:
+            if not case.date_deposition and case.date_receiving:
+                case.date_deposition = case.date_receiving
+                updated = True
+            if not case.date_issuance and case.date_completion:
+                case.date_issuance = case.date_completion
+                updated = True
+            if not case.date_intimation and case.date_dispatch:
+                case.date_intimation = case.date_dispatch
+                updated = True
+        if updated:
+            db_copy.commit()
+            print("Successfully migrated existing date fields in database.")
+    except Exception as e:
+        print(f"Error copying old date values: {e}")
+    finally:
+        db_copy.close()
 
     # 2. Create default admin if missing, or mark must_change_password=True if password is still 'admin'
     db = SessionLocal()
