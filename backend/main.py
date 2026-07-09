@@ -109,7 +109,8 @@ def startup_db_init():
         "ALTER TABLE cases ADD COLUMN date_issuance VARCHAR(100) NULL",
         "ALTER TABLE cases ADD COLUMN date_intimation VARCHAR(100) NULL",
         "ALTER TABLE cases ADD COLUMN date_return VARCHAR(100) NULL",
-        "ALTER TABLE cases MODIFY file_name TEXT NULL"
+        "ALTER TABLE cases MODIFY file_name TEXT NULL",
+        "ALTER TABLE cases ADD FULLTEXT INDEX ft_cases_search(file_name, file_path, incident_type, raw_text, status, error_reason, review_note, reviewed_by, uploaded_by, ocr_confidence, case_name, source_folder, command, suspected_pio_numbers, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, date_deposition, date_issuance, date_intimation, date_return)"
     ]
     with engine.connect() as conn:
         for sql in migrations:
