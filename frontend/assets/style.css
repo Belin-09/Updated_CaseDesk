@@ -742,6 +742,7 @@ html, body {
   overflow-y: auto;
   font-family: 'Consolas', monospace;
   line-height: 1.6;
+  position: relative;
 }
 
 .file-list-item {
@@ -1559,4 +1560,199 @@ body.login-page {
   background: rgba(79, 156, 255, 0.15);
   color: #4f9cff;
   border-color: #4f9cff;
+}
+
+/* ── Case Detail Page Premium UI Overrides ──────────────────────────────── */
+
+#queryBuilderContainer select option,
+.filter-row select option {
+  background-color: #0f1419;
+  color: #ffffff;
+}
+
+/* Background Gradient for the page */
+.case-detail-page {
+  background: radial-gradient(circle at top right, #131b26 0%, #0f1419 60%);
+  background-attachment: fixed;
+}
+
+/* Glowing orb behind the layout */
+.page-background-glow {
+  position: fixed;
+  top: -150px;
+  right: -150px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(79, 156, 255, 0.1) 0%, rgba(79, 156, 255, 0) 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Ensure container content sits above the glow */
+.case-detail-page .page-container,
+.case-detail-page .navbar {
+  position: relative;
+  z-index: 1;
+}
+
+/* Glassmorphism for Detail Cards */
+.case-detail-page .detail-card {
+  background: rgba(26, 33, 41, 0.65);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.3s ease;
+}
+
+/* Subtle float effect on hover */
+.case-detail-page .detail-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+/* Typography Enhancements - Gradients on Headers */
+.case-detail-page .detail-card h3 {
+  background: linear-gradient(90deg, #4f9cff, #8cbcfc);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 700;
+  letter-spacing: 1px;
+}
+
+/* Enhanced Inputs with Glow */
+.case-detail-page .field-group input,
+.case-detail-page .field-group textarea,
+.case-detail-page .field-group select {
+  background: rgba(15, 20, 25, 0.7);
+  border: 1px solid rgba(42, 52, 65, 0.8);
+  transition: all 0.25s ease;
+}
+
+.case-detail-page .field-group input:focus,
+.case-detail-page .field-group textarea:focus,
+.case-detail-page .field-group select:focus {
+  border-color: #4f9cff;
+  box-shadow: 0 0 0 3px rgba(79, 156, 255, 0.15);
+  background: rgba(15, 20, 25, 0.9);
+}
+
+/* Micro-animations for Buttons */
+.case-detail-page .btn-primary,
+.case-detail-page .btn-secondary,
+.case-detail-page .btn-danger {
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.case-detail-page .btn-primary {
+  background: linear-gradient(135deg, #4f9cff 0%, #2f7cfc 100%);
+  box-shadow: 0 4px 12px rgba(79, 156, 255, 0.25);
+  border: none;
+}
+
+.case-detail-page .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(79, 156, 255, 0.4);
+}
+
+.case-detail-page .btn-primary:active {
+  transform: translateY(0);
+}
+
+.case-detail-page .btn-secondary:hover {
+  background: rgba(79, 156, 255, 0.1);
+  border-color: #4f9cff;
+  color: #e8eaed;
+  transform: translateY(-1px);
+}
+
+/* Custom Scrollbar for Raw Text Box */
+.case-detail-page .raw-text-box {
+  background: rgba(10, 14, 18, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  scrollbar-width: thin;
+  scrollbar-color: #4f9cff transparent;
+}
+
+.case-detail-page .raw-text-box::-webkit-scrollbar {
+  width: 6px;
+}
+
+.case-detail-page .raw-text-box::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+
+.case-detail-page .raw-text-box::-webkit-scrollbar-thumb {
+  background-color: #2a3441;
+  border-radius: 4px;
+}
+
+.case-detail-page .raw-text-box:hover::-webkit-scrollbar-thumb {
+  background-color: #4f9cff;
+}
+
+/* File List Item hover enhancement */
+.case-detail-page .file-list-item {
+  transition: background 0.2s ease;
+  padding: 10px 12px;
+  margin: -10px -12px 10px;
+  border-radius: 6px;
+  border-bottom: 1px solid rgba(42, 52, 65, 0.5);
+}
+
+.case-detail-page .file-list-item:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.case-detail-page .file-list-item:last-child {
+  margin-bottom: 0;
+  border-bottom: none;
+}
+
+/* ── Split Layout for Document Preview ─────────────────────────────────── */
+.preview-split-layout .preview-sidebar::-webkit-scrollbar {
+  width: 6px;
+}
+.preview-split-layout .preview-sidebar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
+}
+.preview-split-layout .preview-sidebar::-webkit-scrollbar-thumb {
+  background-color: #2a3441;
+  border-radius: 4px;
+}
+.preview-split-layout .preview-sidebar:hover::-webkit-scrollbar-thumb {
+  background-color: #4f9cff;
+}
+
+.preview-tabs.vertical-tabs {
+  flex-direction: column;
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+  overflow-x: hidden;
+  overflow-y: visible;
+  white-space: normal;
+  gap: 6px;
+}
+
+.preview-sub-tabs.vertical-sub-tabs {
+  flex-direction: column;
+  overflow-x: hidden;
+  overflow-y: visible;
+  margin-left: 12px;
+  margin-top: -2px;
+  margin-bottom: 6px;
+  padding: 6px;
+}
+
+.preview-tabs.vertical-tabs .preview-tab,
+.preview-tabs.vertical-tabs .preview-folder-tab,
+.preview-sub-tabs.vertical-sub-tabs .preview-sub-tab {
+  white-space: normal;
+  word-break: break-word;
+  line-height: 1.4;
 }

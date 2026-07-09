@@ -15,8 +15,8 @@ def preprocess_image(image: Image.Image) -> Image.Image:
     
     # Scale up if resolution is low (improves OCR for small text)
     w, h = image.size
-    if w < 1500 or h < 1500:
-        # Scale up by 2x
+    if w < 1000 and h < 1000:
+        # Scale up by 2x only if the image is quite small
         image = image.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
         
     # Enhance contrast (skip sharpening to avoid noise artifacts)

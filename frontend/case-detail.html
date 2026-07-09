@@ -6,7 +6,15 @@
   <title>CaseDesk — Case Detail</title>
   <link rel="stylesheet" href="assets/style.css?v=2.5">
 </head>
-<body>
+<body class="case-detail-page">
+  <style>
+    .field-group label {
+      color: #cdd5e0 !important;
+      font-weight: 500 !important;
+      font-size: 13px !important;
+    }
+  </style>
+  <div class="page-background-glow"></div>
 
   <nav class="navbar">
     <div class="navbar-left">
@@ -41,7 +49,7 @@
       <!-- Left column -->
       <div>
         <div class="detail-card">
-          <h3>Case Fields</h3>
+          <h3 style="text-transform: uppercase; letter-spacing: 0.5px; color: #4f9cff; font-size: 14px; font-weight: 700; margin-bottom: 20px;">Examiners</h3>
           
           <div class="field-row">
             <div class="field-group">
@@ -90,38 +98,6 @@
             </div>
           </div>
 
-          <div class="field-row" style="margin-top: 15px;">
-            <div class="field-group" style="max-width: 250px;">
-              <label>Status</label>
-              <select id="f_status">
-                <option value="open">Open</option>
-                <option value="pending">Pending</option>
-                <option value="closed">Closed</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div class="detail-card">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
-            <h3 style="margin: 0;">Document Preview</h3>
-            <div class="search-box-container" style="display: flex; gap: 8px; align-items: center; width: 300px; max-width: 100%;">
-              <input type="text" id="caseSearchInput" placeholder="Search text in documents..." style="flex: 1; padding: 6px 12px; border-radius: 4px; border: 1px solid #2a3441; background: #0f1419; color: #e8eaed; font-size: 13px; outline: none; transition: border-color 0.15s ease;" onfocus="this.style.borderColor='#4f9cff'" onblur="this.style.borderColor='#2a3441'">
-              <button class="btn-primary" id="caseSearchBtn" style="padding: 6px 12px; font-size: 13px; border-radius: 4px;">Search</button>
-            </div>
-          </div>
-          <div id="documentPreviewContainer" style="margin-top: 10px;">Loading preview...</div>
-          <div class="raw-text-box" id="rawTextBox" style="display: none; margin-top: 10px;">—</div>
-        </div>
-
-        <div class="detail-card">
-          <h3>Source Files</h3>
-          <div id="fileList"></div>
-        </div>
-
-        <div class="save-bar">
-          <span class="save-status" id="saveStatus"></span>
-          <button class="btn-primary" id="saveBtn">Save Changes</button>
         </div>
       </div>
 
@@ -145,10 +121,42 @@
           </div>
         </div>
       </div>
-    </div>
+    </div> <!-- Close .detail-layout -->
+
+    <!-- Full-width lower section -->
+    <div style="margin-top: 20px;">
+        <div class="detail-card">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 10px;">
+            <h3 style="margin: 0;">Document Preview</h3>
+            <div class="search-box-container" style="display: flex; gap: 8px; align-items: center; width: 300px; max-width: 100%;">
+              <input type="text" id="caseSearchInput" placeholder="Search text in documents..." style="flex: 1; padding: 6px 12px; border-radius: 4px; border: 1px solid #2a3441; background: #0f1419; color: #e8eaed; font-size: 13px; outline: none; transition: border-color 0.15s ease;" onfocus="this.style.borderColor='#4f9cff'" onblur="this.style.borderColor='#2a3441'">
+              <button class="btn-primary" id="caseSearchBtn" style="padding: 6px 12px; font-size: 13px; border-radius: 4px;">Search</button>
+            </div>
+          </div>
+          <div class="preview-split-layout" style="display: flex; gap: 20px; align-items: flex-start;">
+            <div id="previewSidebar" class="preview-sidebar" style="width: 250px; flex-shrink: 0; display: flex; flex-direction: column; gap: 12px; max-height: 800px; overflow-y: auto;">
+              <!-- Tabs will be dynamically inserted here -->
+            </div>
+            <div class="preview-content" style="flex: 1; min-width: 0;">
+              <div id="documentPreviewContainer" style="margin-top: 0;">Loading preview...</div>
+              <div class="raw-text-box" id="rawTextBox" style="display: none; margin-top: 10px;">—</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-card">
+          <h3>Source Files</h3>
+          <div id="fileList"></div>
+        </div>
+
+        <div class="save-bar">
+          <span class="save-status" id="saveStatus"></span>
+          <button class="btn-primary" id="saveBtn">Save Changes</button>
+        </div>
+    </div> <!-- Close full-width lower section -->
   </div>
 
   <script src="assets/auth-guard.js"></script>
-  <script src="assets/case-detail.js?v=2.5"></script>
+  <script src="assets/case-detail.js?v=2.6"></script>
 </body>
 </html>

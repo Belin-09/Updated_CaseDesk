@@ -44,8 +44,8 @@ def get_analytics_summary(
 
     # 1. Cases per Year
     year_counts = defaultdict(int)
-    # 2. PIO numbers per Year
-    year_pio = defaultdict(int)
+    # 2. PIO numbers frequency per Year
+    year_pio_freq = defaultdict(lambda: defaultdict(int))
     # 3. Cases per Command per Year
     year_command = defaultdict(lambda: defaultdict(int))
     # 4. Cases per Type per Year
@@ -58,8 +58,11 @@ def get_analytics_summary(
         yr = extract_year_from_case(c)
         year_counts[yr] += 1
 
-        pio_cnt = getattr(c, "suspected_pio_count", 0) or 0
-        year_pio[yr] += pio_cnt
+        pio_str = getattr(c, "suspected_pio_numbers", None)
+        if pio_str:
+            nums = [n.strip() for n in pio_str.split(",") if n.strip()]
+            for n in nums:
+                year_pio_freq[yr][n] += 1
 
         cmd = getattr(c, "command", None) or "Unassigned"
         year_command[yr][cmd] += 1
@@ -74,7 +77,18 @@ def get_analytics_summary(
         sorted_years.append("Unknown")
 
     cases_per_year = [{"year": y, "count": year_counts[y]} for y in sorted_years]
-    pio_per_year = [{"year": y, "count": year_pio[y]} for y in sorted_years]
+    
+    pio_per_year = []
+    for y in sorted_years:
+        freq = year_pio_freq.get(y, {})
+        details = [{"number": num, "occurrences": count} for num, count in freq.items()]
+        # Sort details by occurrences descending, then by number
+        details.sort(key=lambda x: (-x["occurrences"], x["number"]))
+        pio_per_year.append({
+            "year": y,
+            "count": len(freq),
+            "details": details
+        })
 
     cases_by_command_year = {
         "years": sorted_years,
@@ -117,7 +131,7 @@ def get_pio_numbers_by_year(
     current_user=Depends(get_current_user)
 ):
     all_cases = db.query(Case).all()
-    results = []
+    pio_map = defaultdict(list)
     
     for c in all_cases:
         yr = extract_year_from_case(c)
@@ -125,10 +139,18 @@ def get_pio_numbers_by_year(
             # Split and clean
             numbers = [num.strip() for num in c.suspected_pio_numbers.split(",") if num.strip()]
             for num in numbers:
-                results.append({
-                    "number": num,
+                pio_map[num].append({
                     "case_id": c.id,
                     "case_name": c.case_name or c.file_name or f"Case #{c.id}"
                 })
                 
+    results = []
+    for num, cases in pio_map.items():
+        results.append({
+            "number": num,
+            "occurrences": len(cases),
+            "case_id": cases[0]["case_id"] # Provide a quick link to the first case
+        })
+        
+    results.sort(key=lambda x: (-x["occurrences"], x["number"]))
     return {"year": year, "numbers": results}

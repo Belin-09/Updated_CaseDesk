@@ -201,9 +201,12 @@ async function showPioNumbersForYear(year) {
     
     pioListContainer.innerHTML = list.map(item => `
       <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #0f1419; border: 1px solid #2a3441; border-radius: 6px; margin-bottom: 8px; font-size: 13.5px; transition: all 0.15s ease;">
-        <span style="color: #f43f5e; font-weight: 700; font-family: monospace; font-size: 15px; letter-spacing: 0.5px;">📱 ${escapeHtml(item.number)}</span>
-        <a href="case-detail.html?id=${item.case_id}&search=${encodeURIComponent(item.number)}" style="color: #4f9cff; text-decoration: none; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(79, 156, 255, 0.08); border-radius: 4px; border: 1px solid rgba(79, 156, 255, 0.15); transition: all 0.15s ease;" onmouseover="this.style.background='rgba(79,156,255,0.15)'" onmouseout="this.style.background='rgba(79,156,255,0.08)'">
-          Go to Case
+        <div>
+          <span style="color: #f43f5e; font-weight: 700; font-family: monospace; font-size: 15px; letter-spacing: 0.5px;">📱 ${escapeHtml(item.number)}</span>
+          <span style="margin-left: 10px; font-size: 11px; font-weight: 700; color: #10b981; background: rgba(16, 185, 129, 0.15); padding: 2px 6px; border-radius: 4px;">${item.occurrences} case${item.occurrences !== 1 ? 's' : ''}</span>
+        </div>
+        <a href="search.html?q=${encodeURIComponent(item.number)}&year=${encodeURIComponent(year)}" style="color: #4f9cff; text-decoration: none; font-size: 12px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; padding: 4px 8px; background: rgba(79, 156, 255, 0.08); border-radius: 4px; border: 1px solid rgba(79, 156, 255, 0.15); transition: all 0.15s ease;" onmouseover="this.style.background='rgba(79,156,255,0.15)'" onmouseout="this.style.background='rgba(79,156,255,0.08)'">
+          Find Cases →
         </a>
       </div>
     `).join("");

@@ -81,20 +81,22 @@ async function loadCase() {
   }
 
   let tabsContainer = document.getElementById("previewTabsContainer");
+  let sidebar = document.getElementById("previewSidebar");
+
   if (!tabsContainer && previewContainer) {
     tabsContainer = document.createElement("div");
     tabsContainer.id = "previewTabsContainer";
-    tabsContainer.className = "preview-tabs";
-    previewContainer.parentNode.insertBefore(tabsContainer, previewContainer);
+    tabsContainer.className = "preview-tabs vertical-tabs";
+    if (sidebar) {
+      sidebar.appendChild(tabsContainer);
+    } else {
+      previewContainer.parentNode.insertBefore(tabsContainer, previewContainer);
+    }
   }
 
   let subTabsContainer = document.getElementById("previewSubTabsContainer");
-  if (!subTabsContainer && previewContainer && tabsContainer) {
-    subTabsContainer = document.createElement("div");
-    subTabsContainer.id = "previewSubTabsContainer";
-    subTabsContainer.className = "preview-sub-tabs";
-    subTabsContainer.style.display = "none";
-    tabsContainer.parentNode.insertBefore(subTabsContainer, tabsContainer.nextSibling);
+  if (subTabsContainer) {
+    subTabsContainer.remove(); // Clean up on reload
   }
 
   // Hide the source files card
@@ -249,15 +251,16 @@ function renderTabs(files, caseRawText, mainFileName, caseId, sourceFolder) {
   });
 
   tabsContainer.style.display = "flex";
-  if (!tabsContainer.dataset.wheelBound) {
-    tabsContainer.dataset.wheelBound = "true";
-    tabsContainer.addEventListener("wheel", (evt) => {
-      if (evt.deltaY !== 0) {
-        evt.preventDefault();
-        tabsContainer.scrollLeft += evt.deltaY;
-      }
-    }, { passive: false });
-  }
+  // Vertical layout doesn't need custom wheel to scrollLeft translation
+  // if (!tabsContainer.dataset.wheelBound) {
+  //   tabsContainer.dataset.wheelBound = "true";
+  //   tabsContainer.addEventListener("wheel", (evt) => {
+  //     if (evt.deltaY !== 0) {
+  //       evt.preventDefault();
+  //       tabsContainer.scrollLeft += evt.deltaY;
+  //     }
+  //   }, { passive: false });
+  // }
 
   tabsContainer.innerHTML = html;
 }
@@ -297,14 +300,14 @@ window.selectTab = function(index) {
   if (!file) return;
 
   if (file.folderName) {
-    const subContainer = document.getElementById("previewSubTabsContainer");
-    if (subContainer) {
-      subContainer.style.display = "flex";
-      if (window.activeFolderName !== file.folderName) {
-        window.activeFolderName = file.folderName;
-        window.renderSubTabs(file.folderName);
-      }
+    let subContainer = document.getElementById("previewSubTabsContainer");
+    if (!subContainer) {
+      subContainer = document.createElement("div");
+      subContainer.id = "previewSubTabsContainer";
+      subContainer.className = "preview-sub-tabs vertical-sub-tabs";
     }
+
+    subContainer.style.display = "flex";
 
     // Highlight the folder tab
     document.querySelectorAll(".preview-tab, .preview-folder-tab").forEach(tab => {
@@ -313,6 +316,13 @@ window.selectTab = function(index) {
     const folderTab = document.getElementById(`folder-tab-${file.folderId}`);
     if (folderTab) {
       folderTab.classList.add("active");
+      // Move the subContainer directly after the active folder tab (accordion effect)
+      folderTab.parentNode.insertBefore(subContainer, folderTab.nextSibling);
+    }
+
+    if (window.activeFolderName !== file.folderName) {
+      window.activeFolderName = file.folderName;
+      window.renderSubTabs(file.folderName);
     }
 
     // Highlight sub-tab item
@@ -401,6 +411,14 @@ function loadPreview(fileName, fileId, rawTextContent) {
           📄 Word Document Text Preview (extracted text is shown below):
         </div>
       `;
+      const iframe = previewContainer.querySelector(".docx-preview-iframe");
+      if (iframe) {
+        iframe.addEventListener("load", () => {
+          if (searchTerm) {
+            iframe.contentWindow.postMessage({ type: 'NAVIGATE_HIT', index: currentHitIndex }, '*');
+          }
+        });
+      }
       rawTextBox.style.display = "block";
       const textToDisplay = rawTextContent || "No extracted text available.";
       if (searchTerm) {
@@ -481,7 +499,12 @@ function renderHitNavigator() {
     <button id="hitNextBtn" onclick="navigateHit(1)">▼ Next</button>
   `;
 
-  rawTextBox.parentNode.insertBefore(nav, rawTextBox);
+  const previewContainer = document.getElementById("documentPreviewContainer");
+  if (previewContainer) {
+    previewContainer.parentNode.insertBefore(nav, previewContainer);
+  } else {
+    rawTextBox.parentNode.insertBefore(nav, rawTextBox);
+  }
 
   // Jump to first hit
   jumpToHit(0);
@@ -503,8 +526,22 @@ function jumpToHit(index) {
   marks.forEach(m => m.classList.remove("active-hit"));
   marks[currentHitIndex].classList.add("active-hit");
 
-  // Scroll the mark into view inside the rawTextBox
-  marks[currentHitIndex].scrollIntoView({ behavior: "smooth", block: "center" });
+  // Scroll the mark into view inside the rawTextBox without scrolling the page
+  const targetMark = marks[currentHitIndex];
+  const containerHalfHeight = rawTextBox.clientHeight / 2;
+  // Calculate position of the mark relative to the scrolling container
+  const markTop = targetMark.offsetTop;
+  
+  rawTextBox.scrollTo({
+    top: markTop - containerHalfHeight,
+    behavior: "smooth"
+  });
+
+  // Scroll in docx iframe if it exists
+  const iframe = document.querySelector(".docx-preview-iframe");
+  if (iframe && iframe.contentWindow) {
+    iframe.contentWindow.postMessage({ type: 'NAVIGATE_HIT', index: currentHitIndex }, '*');
+  }
 
   // Update counter
   const counter = document.getElementById("hitCurrentNum");

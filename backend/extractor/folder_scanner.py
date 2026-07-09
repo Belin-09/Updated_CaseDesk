@@ -3,6 +3,7 @@ from extractor.detect import is_allowed, detect_file_type, extract_text
 from extractor.field_parser import parse_fields, count_extracted_fields
 from validator import validate_extraction
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".jpg", ".jpeg", ".png"}
 
@@ -144,23 +145,46 @@ def process_case_folder(case_name: str, case_path: str, is_file: bool = False) -
     file_names = []
     file_records = []  # ← NEW: per-file tracking
 
-    for f in files:
+    def process_file(f):
         fname = os.path.basename(f["file_path"])
-        file_names.append(fname)
-
-        file_text = ""
-        file_confidence = None
-        file_error = None
-
         try:
             file_text, file_confidence = extract_text(f["file_path"], f["file_type"])
-            if file_text:
-                merged_text += f"\n\n--- {fname} ---\n{file_text}"
-            if file_confidence is not None:
-                ocr_confidences.append(file_confidence)
+            return {
+                "f": f,
+                "fname": fname,
+                "file_text": file_text,
+                "file_confidence": file_confidence,
+                "file_error": None
+            }
         except Exception as e:
-            file_error = str(e)
-            extraction_exception = file_error  # last failure, surfaced at case level too
+            return {
+                "f": f,
+                "fname": fname,
+                "file_text": "",
+                "file_confidence": None,
+                "file_error": str(e)
+            }
+
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(process_file, files))
+
+    for res in results:
+        fname = res["fname"]
+        f = res["f"]
+        file_text = res["file_text"]
+        file_confidence = res["file_confidence"]
+        file_error = res["file_error"]
+
+        file_names.append(fname)
+        
+        if file_text:
+            merged_text += f"\n\n--- {fname} ---\n{file_text}"
+        
+        if file_confidence is not None:
+            ocr_confidences.append(file_confidence)
+            
+        if file_error:
+            extraction_exception = file_error
 
         file_records.append({
             "file_name": fname,

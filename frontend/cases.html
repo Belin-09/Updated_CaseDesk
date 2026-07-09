@@ -6,7 +6,9 @@
   <title>CaseDesk — Cases</title>
   <link rel="stylesheet" href="assets/style.css?v=2.5">
 </head>
-<body>
+<body class="case-detail-page">
+
+  <div class="page-background-glow"></div>
 
   <nav class="navbar">
     <div class="navbar-left">
@@ -62,10 +64,10 @@
 
     <!-- Cases List Drilldown View (hidden by default) -->
     <div id="casesListContainer" style="display: none;">
-      <div class="toolbar">
-        <input type="text" id="searchInput" placeholder="Search keywords, officer, location..." style="flex: 2;">
-        <input type="text" id="caseSearchInput" placeholder="Search Case No / File Name / ID..." style="flex: 1.2; min-width: 180px;">
-        <select id="sortBy">
+      <div class="toolbar" style="background: rgba(15, 20, 25, 0.45); border: 1px solid rgba(79, 156, 255, 0.15); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
+        <input type="text" id="searchInput" placeholder="Search keywords, officer, location..." style="flex: 2; padding: 14px 20px; background: rgba(0,0,0,0.2); border: 1px solid #2a3441; border-radius: 8px; color: #ffffff; font-size: 15px; outline: none; transition: all 0.2s ease;" onfocus="this.style.borderColor='#4f9cff'; this.style.boxShadow='0 0 0 1px #4f9cff, 0 8px 30px rgba(79,156,255,0.15)';" onblur="this.style.borderColor='#2a3441'; this.style.boxShadow='none';">
+        <input type="text" id="caseSearchInput" placeholder="Search Case No / File Name / ID..." style="flex: 1.2; min-width: 180px; padding: 14px 20px; background: rgba(0,0,0,0.2); border: 1px solid #2a3441; border-radius: 8px; color: #ffffff; font-size: 15px; outline: none; transition: all 0.2s ease;" onfocus="this.style.borderColor='#4f9cff'; this.style.boxShadow='0 0 0 1px #4f9cff, 0 8px 30px rgba(79,156,255,0.15)';" onblur="this.style.borderColor='#2a3441'; this.style.boxShadow='none';">
+        <select id="sortBy" style="padding: 14px 20px; background: rgba(42, 52, 65, 0.4); border: 1px solid #2a3441; border-radius: 8px; color: #e8eaed; font-size: 14px; outline: none; cursor: pointer;">
           <option value="created_at">Date Created</option>
           <option value="date_deposition">Deposition Date</option>
           <option value="date_issuance">Hash Letter Issuance</option>
@@ -77,7 +79,7 @@
           <option value="pertains_name">Name</option>
           <option value="pertains_unit">Unit</option>
         </select>
-        <select id="sortOrder">
+        <select id="sortOrder" style="padding: 14px 20px; background: rgba(42, 52, 65, 0.4); border: 1px solid #2a3441; border-radius: 8px; color: #e8eaed; font-size: 14px; outline: none; cursor: pointer;">
           <option value="desc">Descending</option>
           <option value="asc">Ascending</option>
         </select>

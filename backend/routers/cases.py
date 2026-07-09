@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, and_
+from sqlalchemy import or_, and_, extract
 from typing import Optional
 from database import get_db
 from models import Case, CaseFile, AuditLog
@@ -294,55 +294,141 @@ def list_cases(
     }
 
 
+@router.get("/search/options")
+def get_search_options(db: Session = Depends(get_db)):
+    incident_types = [r[0] for r in db.query(Case.incident_type).distinct().filter(Case.incident_type != None).all() if r[0].strip()]
+    commands = [r[0] for r in db.query(Case.command).distinct().filter(Case.command != None).all() if r[0].strip()]
+    analysts = [r[0] for r in db.query(Case.analyst).distinct().filter(Case.analyst != None).all() if r[0].strip()]
+    investigating_officers = [r[0] for r in db.query(Case.investigating_officer).distinct().filter(Case.investigating_officer != None).all() if r[0].strip()]
+    
+    # Extract unique dates from the 4 date fields
+    d1 = [r[0] for r in db.query(Case.date_deposition).distinct().filter(Case.date_deposition != None).all() if r[0].strip() and r[0].strip().lower() != "unknown"]
+    d2 = [r[0] for r in db.query(Case.date_issuance).distinct().filter(Case.date_issuance != None).all() if r[0].strip() and r[0].strip().lower() != "unknown"]
+    d3 = [r[0] for r in db.query(Case.date_intimation).distinct().filter(Case.date_intimation != None).all() if r[0].strip() and r[0].strip().lower() != "unknown"]
+    d4 = [r[0] for r in db.query(Case.date_return).distinct().filter(Case.date_return != None).all() if r[0].strip() and r[0].strip().lower() != "unknown"]
+    all_dates = sorted(list(set(d1 + d2 + d3 + d4)))
+    
+    # Use the same logic as the cases page to extract years
+    years_data = get_case_years(db, None)
+    years = sorted([y["year"] for y in years_data if y["year"] != "Unknown"], reverse=True)
+    
+    return {
+        "incident_type": sorted(incident_types),
+        "command": sorted(commands),
+        "analyst": sorted(analysts),
+        "investigating_officer": sorted(investigating_officers),
+        "dates": all_dates,
+        "years": years
+    }
+
+import json
+
 @router.get("/search/advanced")
 def advanced_search(
-    category: str = Query(..., description="Search category"),
-    term: str = Query(..., description="Search term"),
+    filters: Optional[str] = Query(None, description="JSON array of filters"),
+    year: Optional[str] = Query(None, description="Year filter"),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
     query = db.query(Case)
-    term = term.strip()
-    if not term:
-        return []
 
-    pattern = f"%{term}%"
+    global_term = None
+    if filters:
+        try:
+            filter_list = json.loads(filters)
+            for f in filter_list:
+                category = f.get("category")
+                term = f.get("term")
+                if not category or not term:
+                    continue
+                
+                term = str(term).strip()
+                pattern = f"%{term}%"
 
-    if category == "case_name":
-        query = query.filter(Case.case_name.ilike(pattern))
-    elif category == "incident_type":
-        query = query.filter(Case.incident_type.ilike(pattern))
-    elif category == "command":
-        query = query.filter(Case.command.ilike(pattern))
-    elif category == "analyst":
-        query = query.filter(Case.analyst.ilike(pattern))
-    elif category == "investigating_officer":
-        query = query.filter(Case.investigating_officer.ilike(pattern))
-    elif category == "pertains":
-        query = query.filter(
-            or_(
-                Case.pertains_service_no.ilike(pattern),
-                Case.pertains_name.ilike(pattern),
-                Case.pertains_unit.ilike(pattern)
-            )
-        )
-    elif category == "dates":
-        query = query.filter(
-            or_(
-                Case.date_deposition.ilike(pattern),
-                Case.date_issuance.ilike(pattern),
-                Case.date_intimation.ilike(pattern),
-                Case.date_return.ilike(pattern)
-            )
-        )
-    elif category == "random":
-        query = query.filter(Case.raw_text.ilike(pattern))
-    else:
-        raise HTTPException(status_code=400, detail="Invalid search category")
+                if category in ("random", "case_name"):
+                    global_term = term
+
+                if category == "case_name":
+                    query = query.filter(Case.case_name.ilike(pattern))
+                elif category == "incident_type":
+                    query = query.filter(Case.incident_type.ilike(pattern))
+                elif category == "command":
+                    query = query.filter(Case.command.ilike(pattern))
+                elif category == "analyst":
+                    query = query.filter(Case.analyst.ilike(pattern))
+                elif category == "investigating_officer":
+                    query = query.filter(Case.investigating_officer.ilike(pattern))
+                elif category == "pertains":
+                    query = query.filter(
+                        or_(
+                            Case.pertains_service_no.ilike(pattern),
+                            Case.pertains_name.ilike(pattern),
+                            Case.pertains_unit.ilike(pattern)
+                        )
+                    )
+                elif category == "dates":
+                    query = query.filter(
+                        or_(
+                            Case.date_deposition.ilike(pattern),
+                            Case.date_issuance.ilike(pattern),
+                            Case.date_intimation.ilike(pattern),
+                            Case.date_return.ilike(pattern)
+                        )
+                    )
+                elif category == "random":
+                    query = query.filter(Case.raw_text.ilike(pattern))
+        except Exception:
+            pass
 
     cases = query.all()
-    results = []
+    
+    filtered_cases = []
     for c in cases:
+        if year and year != "all":
+            c_year = "Unknown"
+            if c.source_folder:
+                m = re.search(r"[\/\\](20\d\d|19\d\d)[\/\\]", c.source_folder)
+                if m:
+                    c_year = m.group(1)
+            if c_year == "Unknown" and c.case_name:
+                m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
+                if m:
+                    c_year = m.group(1)
+            if c_year == "Unknown" and c.created_at:
+                c_year = str(c.created_at.year)
+                
+            if c_year != year:
+                continue
+        filtered_cases.append(c)
+
+    matched_files_map = defaultdict(list)
+    if global_term and filtered_cases:
+        for c in filtered_cases:
+            c.hit_count = count_hits(c, global_term)
+
+        case_ids = [c.id for c in filtered_cases]
+        cfiles = db.query(CaseFile).filter(CaseFile.case_id.in_(case_ids)).all()
+        for cf in cfiles:
+            if cf.raw_text and global_term.lower() in cf.raw_text.lower():
+                f_hits = cf.raw_text.lower().count(global_term.lower())
+                if f_hits > 0:
+                    matched_files_map[cf.case_id].append({
+                        "file_name": cf.file_name,
+                        "hit_count": f_hits
+                    })
+                    
+        for c in filtered_cases:
+            if not matched_files_map[c.id] and c.file_name:
+                if c.raw_text and global_term.lower() in c.raw_text.lower():
+                    matched_files_map[c.id].append({
+                        "file_name": c.file_name,
+                        "hit_count": getattr(c, "hit_count", 1)
+                    })
+                    
+        filtered_cases.sort(key=lambda x: getattr(x, "hit_count", 0), reverse=True)
+
+    results = []
+    for c in filtered_cases:
         results.append({
             "id": c.id,
             "case_name": c.case_name,
@@ -355,7 +441,9 @@ def advanced_search(
             "command": c.command,
             "created_at": c.created_at,
             "error_flag": c.error_flag,
-            "uploaded_by": c.uploaded_by
+            "uploaded_by": c.uploaded_by,
+            "hit_count": getattr(c, "hit_count", 0),
+            "matched_files": matched_files_map.get(c.id, [])
         })
     return results
 
@@ -741,6 +829,21 @@ def convert_docx_to_html(file_path: str, search_term: str = None) -> str:
                 color: #4f9cff;
                 font-weight: 600;
             }
+            mark.search-highlight {
+                background: rgba(14, 165, 233, 0.25) !important;
+                color: #38bdf8 !important;
+                padding: 1px 3px;
+                border-radius: 3px;
+                font-weight: 600;
+                transition: background 0.2s, box-shadow 0.2s;
+            }
+            mark.search-highlight.active-hit {
+                background: rgba(250, 204, 21, 0.45) !important;
+                color: #fbbf24 !important;
+                box-shadow: 0 0 8px rgba(250, 204, 21, 0.5), 0 0 2px rgba(250, 204, 21, 0.3);
+                outline: 2px solid rgba(250, 204, 21, 0.6);
+                outline-offset: 1px;
+            }
         </style>
         </head>
         <body>
@@ -767,16 +870,40 @@ def convert_docx_to_html(file_path: str, search_term: str = None) -> str:
                     html_parts.append("</tr>")
                 html_parts.append("</table>")
                 
-        html_parts.append("</body></html>")
+        html_parts.append("""
+        <script>
+            window.addEventListener('message', function(event) {
+                if (event.data && event.data.type === 'NAVIGATE_HIT') {
+                    const index = event.data.index;
+                    const marks = document.querySelectorAll('mark.search-highlight');
+                    marks.forEach(m => m.classList.remove('active-hit'));
+                    const target = document.getElementById('hit-' + index);
+                    if (target) {
+                        target.classList.add('active-hit');
+                        const targetTop = target.getBoundingClientRect().top + window.scrollY;
+                        window.scrollTo({
+                            top: targetTop - window.innerHeight / 2,
+                            behavior: 'smooth'
+                        });
+                    }
+                }
+            });
+        </script>
+        </body></html>
+        """)
         raw_html = "\n".join(html_parts)
         
         if search_term:
             escaped_term = html.escape(search_term)
             pattern = re.compile(r'(<[^>]+>)|(' + re.escape(escaped_term) + r')', re.IGNORECASE)
+            hit_index = 0
             def replace_match(m):
+                nonlocal hit_index
                 if m.group(1):
                     return m.group(1)
-                return f'<mark class="search-highlight" style="background: rgba(14, 165, 233, 0.45); color: #38bdf8; font-weight: 600; padding: 2px 4px; border-radius: 4px;">{m.group(2)}</mark>'
+                res = f'<mark class="search-highlight" data-hit-index="{hit_index}" id="hit-{hit_index}">{m.group(2)}</mark>'
+                hit_index += 1
+                return res
             raw_html = pattern.sub(replace_match, raw_html)
             
         return raw_html

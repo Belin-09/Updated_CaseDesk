@@ -2,6 +2,7 @@ import pdfplumber
 import pytesseract
 from pdf2image import convert_from_path
 import os
+from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
 load_dotenv()
@@ -36,27 +37,30 @@ def extract_from_scanned_pdf(file_path: str) -> tuple[str, float]:
     except Exception as e:
         raise RuntimeError(f"pdf2image failed: {str(e)}")
 
-    for image in images:
+    def process_page(image):
         try:
-            # Preprocess page image prior to running Tesseract to optimize OCR accuracy
             processed_image = preprocess_image(image)
-
             data = pytesseract.image_to_data(
                 processed_image,
                 output_type=pytesseract.Output.DICT
             )
-
-            # Reconstruct page text preserving line formatting and structure
             page_text = reconstruct_text(data)
-            text += page_text + "\n"
-
             page_confidences = [
                 int(c) for c in data["conf"] if str(c) != "-1"
             ]
-            confidences.extend(page_confidences)
-
+            return page_text, page_confidences
         except Exception as e:
-            raise RuntimeError(f"Tesseract OCR failed: {str(e)}")
+            return None, str(e)
+
+    with ThreadPoolExecutor() as executor:
+        results = list(executor.map(process_page, images))
+
+    for page_text, page_confidences in results:
+        if page_text is None:
+            raise RuntimeError(f"Tesseract OCR failed: {page_confidences}")
+        
+        text += page_text + "\n"
+        confidences.extend(page_confidences)
 
     avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
     return text.strip(), round(avg_confidence, 2)
