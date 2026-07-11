@@ -1,6 +1,7 @@
 const params = new URLSearchParams(window.location.search);
 const caseId = params.get("id");
 let searchTerm = params.get("search");
+let backYear = params.get("year");
 
 // Set search input value if search term exists in URL
 window.addEventListener("DOMContentLoaded", () => {
@@ -14,12 +15,30 @@ if (!caseId) {
   window.location.href = "dashboard.html";
 }
 
-// Update back link to preserve search query
-if (searchTerm) {
-  const backLink = document.querySelector(".back-link");
-  if (backLink) {
-    backLink.href = `dashboard.html?search=${encodeURIComponent(searchTerm)}`;
+// Update back link to use browser history or contextual routing
+const backLink = document.getElementById("backLink") || document.querySelector(".back-link");
+if (backLink) {
+  // Update text based on context
+  if (backYear) {
+    backLink.textContent = `← Back to ${backYear}`;
+  } else if (document.referrer.includes("dashboard.html")) {
+    backLink.textContent = `← Back to Dashboard`;
+  } else if (document.referrer.includes("review-queue.html")) {
+    backLink.textContent = `← Back to Review Queue`;
   }
+
+  backLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (window.history.length > 1 && document.referrer.includes(window.location.host)) {
+      window.history.back();
+    } else if (backYear) {
+      window.location.href = `cases.html?year=${encodeURIComponent(backYear)}`;
+    } else if (searchTerm) {
+      window.location.href = `dashboard.html?search=${encodeURIComponent(searchTerm)}`;
+    } else {
+      window.location.href = "cases.html";
+    }
+  });
 }
 
 const fieldIds = ["analyst", "investigating_officer", "pertains_service_no", "pertains_name", "pertains_unit", "date_deposition", "date_issuance", "date_intimation", "date_return", "status"];

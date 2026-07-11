@@ -1,3 +1,114 @@
+const customBarDecorations = {
+  id: 'customBarDecorations',
+  beforeDatasetsDraw(chart) {
+    if (chart.config.type !== 'bar') return;
+    const ctx = chart.ctx;
+    ctx.save();
+    chart.data.datasets.forEach((dataset, i) => {
+      const meta = chart.getDatasetMeta(i);
+      if (meta.hidden) return;
+      meta.data.forEach((bar, index) => {
+        const data = dataset.data[index];
+        if (data > 0) {
+          const top = bar.y;
+          const bottom = bar.base;
+          if (top === bottom) return;
+          
+          const dx = Math.min(10, bar.width * 0.25);
+          const dy = -dx;
+
+          let color = dataset.backgroundColor;
+          if (Array.isArray(color)) color = color[index % color.length];
+
+          const left = bar.x - bar.width / 2;
+          const right = bar.x + bar.width / 2;
+
+          // Top face
+          ctx.beginPath();
+          ctx.moveTo(left, top);
+          ctx.lineTo(left + dx, top + dy);
+          ctx.lineTo(right + dx, top + dy);
+          ctx.lineTo(right, top);
+          ctx.closePath();
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.15)'; // highlight
+          ctx.fill();
+          ctx.strokeStyle = 'rgba(0,0,0,0.15)';
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+
+          // Right face
+          ctx.beginPath();
+          ctx.moveTo(right, top);
+          ctx.lineTo(right + dx, top + dy);
+          ctx.lineTo(right + dx, bottom + dy);
+          ctx.lineTo(right, bottom);
+          ctx.closePath();
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.fillStyle = 'rgba(0, 0, 0, 0.25)'; // shadow
+          ctx.fill();
+          ctx.stroke();
+        }
+      });
+    });
+    ctx.restore();
+  },
+  afterDatasetsDraw(chart) {
+    if (chart.config.type !== 'bar') return;
+    const ctx = chart.ctx;
+    ctx.save();
+    
+    const isStacked = chart.config.options.scales.y.stacked;
+
+    chart.data.datasets.forEach((dataset, i) => {
+      const meta = chart.getDatasetMeta(i);
+      if (meta.hidden) return;
+      meta.data.forEach((bar, index) => {
+        const data = dataset.data[index];
+        if (data > 0) {
+          const dx = Math.min(10, bar.width * 0.25);
+          const dy = -dx;
+          
+          const left = bar.x - bar.width / 2;
+          const top = bar.y;
+          const width = bar.width;
+          const height = Math.abs(bar.base - bar.y);
+          
+          if (width > 0 && height > 0) {
+            const grad = ctx.createLinearGradient(0, top, 0, top + height);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.15)'); // Soft highlight
+            grad.addColorStop(1, 'rgba(0, 0, 0, 0.25)'); // Soft shadow
+            ctx.fillStyle = grad;
+            ctx.fillRect(left, top, width, height);
+          }
+          
+          let yPos = bar.y + dy - 4;
+          let xPos = bar.x + dx / 2;
+          
+          if (isStacked) {
+            const height = Math.abs(bar.base - bar.y);
+            if (height < 14) return; // Skip label if bar segment is too short
+            yPos = (bar.y + bar.base) / 2 + 5; // Center vertically
+            xPos = bar.x; // Center horizontally without 3D offset
+            ctx.fillStyle = '#ffffff'; // White text for better contrast inside colored bars
+          } else {
+            ctx.fillStyle = '#e8eaed';
+          }
+
+          ctx.font = 'bold 11px Inter, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(data, xPos, yPos);
+        }
+      });
+    });
+    ctx.restore();
+  }
+};
+Chart.register(customBarDecorations);
+
 document.addEventListener("DOMContentLoaded", () => {
   loadAnalytics();
 });
@@ -46,32 +157,34 @@ function renderCasesPerYearChart(data) {
     "#fb923c",
     "#f43f5e"
   ];
-
   new Chart(ctx, {
-    type: "pie",
+    type: "bar",
     data: {
       labels: labels,
       datasets: [{
         label: "Number of Cases",
         data: counts,
-        backgroundColor: colors.slice(0, labels.length),
-        borderColor: borderColors.slice(0, labels.length),
-        borderWidth: 1.5,
-        hoverOffset: 12
+        backgroundColor: ["#38bdf8", "#4f9cff", "#a855f7", "#34d399", "#fbbf24", "#fb923c", "#f43f5e"],
+        borderRadius: 4
       }]
     },
     options: {
+      layout: { padding: { top: 25, right: 15 } },
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: true,
-          position: "right",
-          labels: {
-            color: "#8a93a3",
-            font: { size: 11, weight: "bold" }
-          }
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(255, 255, 255, 0.05)" },
+          ticks: { color: "#8a93a3", stepSize: 1 }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: "#8a93a3", font: { weight: "bold" } }
         }
+      },
+      plugins: {
+        legend: { display: false }
       },
       onClick: (event, activeElements) => {
         if (activeElements && activeElements.length > 0) {
@@ -96,50 +209,34 @@ function renderSuspectedPioChart(data) {
   const labels = data.map(d => d.year);
   const counts = data.map(d => d.count);
 
-  const colors = [
-    "rgba(244, 63, 94, 0.75)",
-    "rgba(251, 146, 60, 0.75)",
-    "rgba(251, 191, 36, 0.75)",
-    "rgba(52, 211, 153, 0.75)",
-    "rgba(168, 85, 247, 0.75)",
-    "rgba(79, 156, 255, 0.75)",
-    "rgba(56, 189, 248, 0.75)"
-  ];
-  const borderColors = [
-    "#f43f5e",
-    "#fb923c",
-    "#fbbf24",
-    "#34d399",
-    "#a855f7",
-    "#4f9cff",
-    "#38bdf8"
-  ];
-
   new Chart(ctx, {
-    type: "pie",
+    type: "bar",
     data: {
       labels: labels,
       datasets: [{
         label: "Suspected PIO Numbers",
         data: counts,
-        backgroundColor: colors.slice(0, labels.length),
-        borderColor: borderColors.slice(0, labels.length),
-        borderWidth: 1.5,
-        hoverOffset: 12
+        backgroundColor: ["#fbbf24", "#fb923c", "#f43f5e", "#a855f7", "#38bdf8", "#34d399", "#4f9cff"],
+        borderRadius: 4
       }]
     },
     options: {
+      layout: { padding: { top: 25 } },
       responsive: true,
       maintainAspectRatio: false,
-      plugins: {
-        legend: {
-          display: true,
-          position: "right",
-          labels: {
-            color: "#8a93a3",
-            font: { size: 11, weight: "bold" }
-          }
+      scales: {
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(255, 255, 255, 0.05)" },
+          ticks: { color: "#8a93a3", stepSize: 1 }
+        },
+        x: {
+          grid: { display: false },
+          ticks: { color: "#8a93a3", font: { weight: "bold" } }
         }
+      },
+      plugins: {
+        legend: { display: false }
       },
       onClick: (event, activeElements) => {
         if (activeElements && activeElements.length > 0) {
@@ -237,22 +334,43 @@ function renderCasesByCommandChart(data) {
   const years = data.years;
   const commands = data.commands;
   
-  // Set width on wrapper parent
+  // Calculate mathematically perfect widths
+  const numBars = commands.length || 1;
+  const barWidth = 32;
+  const groupWidth = numBars * barWidth;
+  const gapBetweenYears = 55;
+  const widthPerYear = groupWidth + gapBetweenYears;
+
+  // Set width on wrapper parent to prevent stretching
   const wrapper = document.getElementById("casesByCommandWrapper");
   if (wrapper) {
-    const minWidth = Math.max(480, years.length * 100);
-    wrapper.style.width = `${minWidth}px`;
+    const totalWidth = years.length * widthPerYear;
+    wrapper.style.width = `${totalWidth}px`;
   }
+
+  const catPct = groupWidth / widthPerYear;
 
   const colors = [
     "#38bdf8", "#4f9cff", "#a855f7", "#34d399", "#fbbf24", "#fb923c", "#f43f5e", "#64748b"
   ];
 
+  const legendDiv = document.getElementById("commandLegend");
+  if (legendDiv) {
+    legendDiv.innerHTML = commands.map((cmd, idx) => `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background-color: ${colors[idx % colors.length]}; flex-shrink: 0;"></span>
+        <span style="color: #8a93a3; font-size: 11.5px; font-weight: 500; line-height: 1.3;" title="${cmd}">${cmd.replace(' ', '<br>')}</span>
+      </div>
+    `).join("");
+  }
+
   const datasets = commands.map((cmd, idx) => ({
     label: cmd,
     data: years.map(y => (data.data[y] && data.data[y][cmd]) || 0),
     backgroundColor: colors[idx % colors.length],
-    borderRadius: 4
+    borderRadius: 4,
+    barPercentage: 1.0,
+    categoryPercentage: catPct
   }));
 
   new Chart(ctx, {
@@ -262,10 +380,11 @@ function renderCasesByCommandChart(data) {
       datasets: datasets
     },
     options: {
+      layout: { padding: { top: 25 } },
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: "#e8eaed", font: { size: 11 } } }
+        legend: { display: false }
       },
       scales: {
         x: { ticks: { color: "#8a93a3" }, grid: { display: false } },
@@ -299,12 +418,21 @@ function renderCasesByTypeChart(data) {
   const years = data.years;
   const types = data.types;
   
-  // Set width on wrapper parent
+  // Calculate mathematically perfect widths
+  const numBars = types.length || 1;
+  const barWidth = 32;
+  const groupWidth = numBars * barWidth;
+  const gapBetweenYears = 55;
+  const widthPerYear = groupWidth + gapBetweenYears;
+  
+  // Set width on wrapper parent to prevent stretching
   const wrapper = document.getElementById("casesByTypeWrapper");
   if (wrapper) {
-    const minWidth = Math.max(480, years.length * 100);
-    wrapper.style.width = `${minWidth}px`;
+    const totalWidth = years.length * widthPerYear;
+    wrapper.style.width = `${totalWidth}px`;
   }
+
+  const catPct = groupWidth / widthPerYear;
 
   const typeColors = {
     "Int (Cyber Espionage)": "#a855f7",
@@ -312,11 +440,23 @@ function renderCasesByTypeChart(data) {
     "DV / Misc": "#34d399"
   };
 
+  const legendDiv = document.getElementById("typeLegend");
+  if (legendDiv) {
+    legendDiv.innerHTML = types.map((t) => `
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="display: inline-block; width: 12px; height: 12px; border-radius: 3px; background-color: ${typeColors[t] || "#8a93a3"}; flex-shrink: 0;"></span>
+        <span style="color: #8a93a3; font-size: 11.5px; font-weight: 500; line-height: 1.3;" title="${t}">${t.startsWith('Int') ? t.replace(' ', '<br>') : t}</span>
+      </div>
+    `).join("");
+  }
+
   const datasets = types.map(t => ({
     label: t,
     data: years.map(y => (data.data[y] && data.data[y][t]) || 0),
     backgroundColor: typeColors[t] || "#8a93a3",
-    borderRadius: 4
+    borderRadius: 4,
+    barPercentage: 1.0,
+    categoryPercentage: catPct
   }));
 
   new Chart(ctx, {
@@ -326,10 +466,11 @@ function renderCasesByTypeChart(data) {
       datasets: datasets
     },
     options: {
+      layout: { padding: { top: 25 } },
       responsive: true,
       maintainAspectRatio: false,
       plugins: {
-        legend: { labels: { color: "#e8eaed", font: { size: 11 } } }
+        legend: { display: false }
       },
       scales: {
         x: { ticks: { color: "#8a93a3" }, grid: { display: false } },

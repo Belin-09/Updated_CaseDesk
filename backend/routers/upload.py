@@ -8,7 +8,7 @@ from database import get_db, SessionLocal
 from models import Case, AuditLog, CaseFile
 from auth import get_current_user
 from extractor.detect import detect_file_type, is_allowed, extract_text
-from extractor.field_parser import parse_fields, count_extracted_fields
+from extractor.field_parser import parse_fields, count_extracted_fields, extract_case_year
 from validator import validate_extraction
 from extractor.folder_scanner import get_case_folders, process_case_folder, get_folder_fingerprint
 from pydantic import BaseModel
@@ -116,6 +116,8 @@ def upload_file(
 
     # 8. Save to DB
     case = Case(
+        case_name=os.path.splitext(file.filename)[0],
+        source_folder="Manual Upload",
         file_name=file.filename,
         file_path=relative_path,
         uploaded_by=current_user.username,
@@ -133,6 +135,11 @@ def upload_file(
         date_issuance=fields.get("date_issuance"),
         date_intimation=fields.get("date_intimation"),
         date_return=fields.get("date_return"),
+        year=extract_case_year(
+            case_name=file.filename,
+            date_deposition=fields.get("date_deposition"),
+            created_at=datetime.utcnow()
+        )
     )
     db.add(case)
     db.commit()
@@ -145,7 +152,7 @@ def upload_file(
         file_path=relative_path,
         file_type=file_type,
         raw_text=raw_text,
-        ocr_confidence=str(ocr_confidence) if ocr_confidence is not None else None,
+        ocr_confidence=ocr_confidence,
         extraction_error=extraction_exception or (error_reason if error_flag else None),
     )
     db.add(case_file)
@@ -172,16 +179,7 @@ def upload_file(
         "error_flag": error_flag,
         "error_reason": error_reason,
         "ocr_confidence": ocr_confidence,
-        "extracted_fields": {
-            "officer": fields.get("officer"),
-            "date": fields.get("date"),
-            "location": fields.get("location"),
-            "incident_type": fields.get("incident_type"),
-            "complainant": fields.get("complainant"),
-            "suspect": fields.get("suspect"),
-            "evidence": fields.get("evidence"),
-            "notes": fields.get("notes"),
-        }
+        "extracted_fields": fields
     }
 
 
@@ -230,7 +228,7 @@ def process_single_folder(folder: dict, username: str):
             existing.suspected_pio_count = data.get("suspected_pio_count", 0)
             existing.error_flag = data["error_flag"]
             existing.error_reason = data["error_reason"]
-            existing.ocr_confidence = str(data["ocr_confidence"]) if data["ocr_confidence"] is not None else None
+            existing.ocr_confidence = data["ocr_confidence"]
             existing.file_count = fingerprint["file_count"]
             existing.last_modified = fingerprint["last_modified"]
             existing.analyst = data.get("analyst")
@@ -243,6 +241,12 @@ def process_single_folder(folder: dict, username: str):
             existing.date_issuance = data.get("date_issuance")
             existing.date_intimation = data.get("date_intimation")
             existing.date_return = data.get("date_return")
+            existing.year = extract_case_year(
+                source_folder=case_path,
+                case_name=case_name,
+                date_deposition=data.get("date_deposition"),
+                created_at=existing.created_at
+            )
             existing.updated_at = datetime.utcnow()
 
             # Replace old per-file records with fresh ones
@@ -254,7 +258,7 @@ def process_single_folder(folder: dict, username: str):
                     file_path=fr["file_path"],
                     file_type=fr["file_type"],
                     raw_text=fr["raw_text"],
-                    ocr_confidence=str(fr["ocr_confidence"]) if fr["ocr_confidence"] is not None else None,
+                    ocr_confidence=fr["ocr_confidence"],
                     extraction_error=fr["extraction_error"],
                 ))
             db.commit()
@@ -308,6 +312,12 @@ def process_single_folder(folder: dict, username: str):
                 date_issuance=data.get("date_issuance"),
                 date_intimation=data.get("date_intimation"),
                 date_return=data.get("date_return"),
+                year=extract_case_year(
+                    source_folder=data["source_folder"],
+                    case_name=data["case_name"],
+                    date_deposition=data.get("date_deposition"),
+                    created_at=datetime.utcnow()
+                )
             )
             db.add(case)
             db.commit()
@@ -320,7 +330,7 @@ def process_single_folder(folder: dict, username: str):
                     file_path=fr["file_path"],
                     file_type=fr["file_type"],
                     raw_text=fr["raw_text"],
-                    ocr_confidence=str(fr["ocr_confidence"]) if fr["ocr_confidence"] is not None else None,
+                    ocr_confidence=fr["ocr_confidence"],
                     extraction_error=fr["extraction_error"],
                 ))
             db.commit()
@@ -345,7 +355,10 @@ def process_single_folder(folder: dict, username: str):
                 })
 
     except Exception as e:
-        db.rollback()
+        try:
+            db.rollback()
+        except:
+            pass
         with scan_lock:
             scan_state["failed"] += 1
             scan_state["cases"].append({

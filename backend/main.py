@@ -61,15 +61,24 @@ def backfill_pertains_fields():
                 
             if merged_text.strip():
                 fields = parse_fields(merged_text)
-                case.pertains_service_no = fields.get("pertains_service_no")
-                case.pertains_name = fields.get("pertains_name")
-                case.pertains_unit = fields.get("pertains_unit")
-                case.analyst = fields.get("analyst")
-                case.investigating_officer = fields.get("investigating_officer")
-                case.date_deposition = fields.get("date_deposition")
-                case.date_issuance = fields.get("date_issuance")
-                case.date_intimation = fields.get("date_intimation")
-                case.date_return = fields.get("date_return")
+                if not case.pertains_service_no:
+                    case.pertains_service_no = fields.get("pertains_service_no")
+                if not case.pertains_name:
+                    case.pertains_name = fields.get("pertains_name")
+                if not case.pertains_unit:
+                    case.pertains_unit = fields.get("pertains_unit")
+                if not case.analyst:
+                    case.analyst = fields.get("analyst")
+                if not case.investigating_officer:
+                    case.investigating_officer = fields.get("investigating_officer")
+                if not case.date_deposition:
+                    case.date_deposition = fields.get("date_deposition")
+                if not case.date_issuance:
+                    case.date_issuance = fields.get("date_issuance")
+                if not case.date_intimation:
+                    case.date_intimation = fields.get("date_intimation")
+                if not case.date_return:
+                    case.date_return = fields.get("date_return")
                 
                 # Also update analytics columns if empty
                 if not case.command:
@@ -82,6 +91,28 @@ def backfill_pertains_fields():
         print("Automatic database backfill completed successfully!")
     except Exception as e:
         print(f"Error running automatic backfill migration: {e}")
+    finally:
+        db.close()
+
+def backfill_year_column():
+    db = SessionLocal()
+    try:
+        from extractor.field_parser import extract_case_year
+        cases = db.query(models.Case).filter(models.Case.year == None).all()
+        if not cases:
+            return
+        print(f"Backfilling year column for {len(cases)} cases...")
+        for case in cases:
+            case.year = extract_case_year(
+                source_folder=case.source_folder,
+                case_name=case.case_name,
+                date_deposition=case.date_deposition,
+                created_at=case.created_at
+            )
+        db.commit()
+        print("Year column backfill completed!")
+    except Exception as e:
+        print(f"Error backfilling year column: {e}")
     finally:
         db.close()
 
@@ -110,7 +141,11 @@ def startup_db_init():
         "ALTER TABLE cases ADD COLUMN date_intimation VARCHAR(100) NULL",
         "ALTER TABLE cases ADD COLUMN date_return VARCHAR(100) NULL",
         "ALTER TABLE cases MODIFY file_name TEXT NULL",
-        "ALTER TABLE cases ADD FULLTEXT INDEX ft_cases_search(file_name, file_path, incident_type, raw_text, status, error_reason, review_note, reviewed_by, uploaded_by, ocr_confidence, case_name, source_folder, command, suspected_pio_numbers, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, date_deposition, date_issuance, date_intimation, date_return)"
+        "ALTER TABLE cases DROP INDEX ft_cases_search",
+        "ALTER TABLE cases MODIFY ocr_confidence FLOAT NULL",
+        "ALTER TABLE cases ADD FULLTEXT INDEX ft_cases_search(file_name, file_path, incident_type, raw_text, status, error_reason, review_note, reviewed_by, uploaded_by, case_name, source_folder, command, suspected_pio_numbers, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, date_deposition, date_issuance, date_intimation, date_return)",
+        "ALTER TABLE case_files ADD CONSTRAINT fk_casefile_case FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE",
+        "ALTER TABLE cases ADD COLUMN year VARCHAR(10) NULL",
     ]
     with engine.connect() as conn:
         for sql in migrations:
@@ -151,6 +186,12 @@ def startup_db_init():
         backfill_pertains_fields()
     except Exception as e:
         print(f"Error running pertains fields backfill: {e}")
+
+    # Backfill year column for existing cases
+    try:
+        backfill_year_column()
+    except Exception as e:
+        print(f"Error running year column backfill: {e}")
 
 # Parse allowed origins from env
 allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:8000,http://localhost:8000")

@@ -66,28 +66,35 @@ def extract_from_scanned_pdf(file_path: str) -> tuple[str, float]:
     return text.strip(), round(avg_confidence, 2)
 
 
-def is_digital_pdf(file_path: str) -> bool:
-    """Check if PDF has selectable text (digital) or is scanned."""
-    try:
-        with pdfplumber.open(file_path) as pdf:
-            for page in pdf.pages:
-                text = page.extract_text()
-                if text and text.strip():
-                    return True
-    except:
-        pass
-    return False
-
-
 def extract_from_pdf(file_path: str) -> tuple[str, float | None]:
     """
     Main PDF extraction function.
     Auto-detects digital vs scanned and uses the right method.
     Returns (text, ocr_confidence or None)
     """
-    if is_digital_pdf(file_path):
-        text, confidence = extract_from_digital_pdf(file_path)
-        return text, confidence
-    else:
-        text, confidence = extract_from_scanned_pdf(file_path)
-        return text, confidence
+    try:
+        is_digital = False
+        digital_text = ""
+        
+        with pdfplumber.open(file_path) as pdf:
+            for i, page in enumerate(pdf.pages):
+                page_text = page.extract_text()
+                
+                if page_text and page_text.strip():
+                    is_digital = True
+                    
+                if page_text:
+                    digital_text += page_text + "\n"
+                    
+                # If we've checked 3 pages and found no text, assume it's scanned
+                if not is_digital and i >= 2:
+                    break
+                    
+            if is_digital:
+                return digital_text.strip(), None
+                
+    except Exception:
+        pass  # Fallback to OCR if pdfplumber fails
+        
+    # If no selectable text was found, or an error occurred, fall back to OCR
+    return extract_from_scanned_pdf(file_path)

@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime
+from sqlalchemy import Column, Integer, String, Text, Boolean, DateTime, ForeignKey
 from sqlalchemy.sql import func
 from database import Base
 from sqlalchemy import Float
@@ -34,7 +34,7 @@ class Case(Base):
     )
     uploaded_by = Column(String(100), nullable=True)
 
-    ocr_confidence = Column(String(20), nullable=True)
+    ocr_confidence = Column(Float, nullable=True)
     case_name     = Column(String(255), nullable=True, index=True)
     source_folder = Column(String(500), nullable=True, index=True)
 
@@ -57,12 +57,14 @@ class Case(Base):
     date_intimation = Column(String(100), nullable=True)
     date_return = Column(String(100), nullable=True)
 
+    # Pre-computed year for fast SQL filtering
+    year = Column(String(10), nullable=True, index=True)
 
 class CaseFile(Base):
     __tablename__ = "case_files"
 
     id               = Column(Integer, primary_key=True, index=True, autoincrement=True)
-    case_id          = Column(Integer, index=True, nullable=False)
+    case_id          = Column(Integer, ForeignKey("cases.id", ondelete="CASCADE"), index=True, nullable=False)
     file_name        = Column(String(255))
     file_path        = Column(String(500))
     file_type        = Column(String(50))

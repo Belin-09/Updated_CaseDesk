@@ -53,30 +53,20 @@ def count_hits(case, search_term: str) -> int:
 # ── GET /cases/years — list all available case years ────────────────────────
 @router.get("/years")
 def get_case_years(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
-    all_cases = db.query(Case.source_folder, Case.case_name, Case.date_deposition, Case.created_at).all()
-    year_counts = defaultdict(int)
-    for c in all_cases:
-        yr = "Unknown"
-        if c.source_folder:
-            m = re.search(r"[\/\\](20\d\d|19\d\d)[\/\\]", c.source_folder)
-            if m:
-                yr = m.group(1)
-        if yr == "Unknown" and c.case_name:
-            m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
-            if m:
-                yr = m.group(1)
-        if yr == "Unknown" and c.date_deposition:
-            m = re.search(r"\b(20\d\d|19\d\d)\b", c.date_deposition)
-            if m:
-                yr = m.group(1)
-        if yr == "Unknown" and c.created_at:
-            yr = str(c.created_at.year)
-        
-        year_counts[yr] += 1
-        
-    sorted_years = sorted([{"year": y, "count": count} for y, count in year_counts.items() if y != "Unknown"], key=lambda x: x["year"], reverse=True)
-    if "Unknown" in year_counts:
-        sorted_years.append({"year": "Unknown", "count": year_counts["Unknown"]})
+    from sqlalchemy import func
+    results = db.query(Case.year, func.count(Case.id)).group_by(Case.year).all()
+    
+    year_counts = {}
+    unknown_count = 0
+    for yr, count in results:
+        if not yr or yr == "Unknown":
+            unknown_count += count
+        else:
+            year_counts[yr] = count
+            
+    sorted_years = sorted([{"year": y, "count": count} for y, count in year_counts.items()], key=lambda x: x["year"], reverse=True)
+    if unknown_count > 0:
+        sorted_years.append({"year": "Unknown", "count": unknown_count})
         
     return sorted_years
 
@@ -179,6 +169,8 @@ def list_cases(
             query = query.filter(Case.command == command)
     if error_flag is not None:
         query = query.filter(Case.error_flag == error_flag)
+    if year:
+        query = query.filter(Case.year == year)
 
     # Sorting
     sort_column = getattr(Case, sort_by, Case.created_at)
@@ -188,51 +180,23 @@ def list_cases(
         query = query.order_by(sort_column.desc())
 
     matched_files_map = defaultdict(list)
-    if search or year:
+    if search:
         all_cases = query.all()
-
-        # Post-filter by year in memory
-        if year:
-            filtered = []
-            for c in all_cases:
-                c_year = "Unknown"
-                if c.source_folder:
-                    m = re.search(r"[\/\\](20\d\d|19\d\d)[\/\\]", c.source_folder)
-                    if m:
-                        c_year = m.group(1)
-                if c_year == "Unknown" and c.case_name:
-                    m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
-                    if m:
-                        c_year = m.group(1)
-                if c_year == "Unknown" and c.date_deposition:
-                    m = re.search(r"\b(20\d\d|19\d\d)\b", c.date_deposition)
-                    if m:
-                        c_year = m.group(1)
-                if c_year == "Unknown" and c.created_at:
-                    c_year = str(c.created_at.year)
-
-                if c_year == year:
-                    filtered.append(c)
-            all_cases = filtered
-
         total = len(all_cases)
 
-        if search:
-            search_cleaned = search.strip()
-            for c in all_cases:
-                c.hit_count = count_hits(c, search_cleaned)
-            total_hits = sum(c.hit_count for c in all_cases)
+        search_cleaned = search.strip()
+        for c in all_cases:
+            c.hit_count = count_hits(c, search_cleaned)
+        total_hits = sum(c.hit_count for c in all_cases)
 
-            # Sort by hit_count descending
-            all_cases.sort(key=lambda x: getattr(x, "hit_count", 0), reverse=True)
-        else:
-            total_hits = 0
+        # Sort by hit_count descending
+        all_cases.sort(key=lambda x: getattr(x, "hit_count", 0), reverse=True)
 
         # Paginate in memory
         start_idx = (page - 1) * page_size
         cases = all_cases[start_idx:start_idx + page_size]
 
-        if search and cases:
+        if cases:
             search_cleaned = search.strip()
             case_ids = [c.id for c in cases]
             cfiles = db.query(CaseFile).filter(CaseFile.case_id.in_(case_ids)).all()
@@ -295,7 +259,10 @@ def list_cases(
 
 
 @router.get("/search/options")
-def get_search_options(db: Session = Depends(get_db)):
+def get_search_options(
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
     incident_types = [r[0] for r in db.query(Case.incident_type).distinct().filter(Case.incident_type != None).all() if r[0].strip()]
     commands = [r[0] for r in db.query(Case.command).distinct().filter(Case.command != None).all() if r[0].strip()]
     analysts = [r[0] for r in db.query(Case.analyst).distinct().filter(Case.analyst != None).all() if r[0].strip()]
@@ -380,26 +347,10 @@ def advanced_search(
         except Exception:
             pass
 
-    cases = query.all()
-    
-    filtered_cases = []
-    for c in cases:
-        if year and year != "all":
-            c_year = "Unknown"
-            if c.source_folder:
-                m = re.search(r"[\/\\](20\d\d|19\d\d)[\/\\]", c.source_folder)
-                if m:
-                    c_year = m.group(1)
-            if c_year == "Unknown" and c.case_name:
-                m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
-                if m:
-                    c_year = m.group(1)
-            if c_year == "Unknown" and c.created_at:
-                c_year = str(c.created_at.year)
-                
-            if c_year != year:
-                continue
-        filtered_cases.append(c)
+    if year and year != "all":
+        query = query.filter(Case.year == year)
+
+    filtered_cases = query.all()
 
     matched_files_map = defaultdict(list)
     if global_term and filtered_cases:
@@ -584,23 +535,29 @@ def reprocess_case(
         raise HTTPException(status_code=400, detail="No extracted text found in case files to parse")
 
     # Re-run parser
-    from extractor.field_parser import parse_fields
+    from extractor.field_parser import parse_fields, extract_case_year
     fields = parse_fields(merged_text)
 
-    # Update metadata fields
-    case.pertains_service_no = fields.get("pertains_service_no")
-    case.pertains_name = fields.get("pertains_name")
-    case.pertains_unit = fields.get("pertains_unit")
-    case.analyst = fields.get("analyst")
-    case.investigating_officer = fields.get("investigating_officer")
-    case.date_deposition = fields.get("date_deposition")
-    case.date_issuance = fields.get("date_issuance")
-    case.date_intimation = fields.get("date_intimation")
-    case.date_return = fields.get("date_return")
-    case.command = fields.get("command")
-    case.suspected_pio_numbers = fields.get("suspected_pio_numbers")
-    case.suspected_pio_count = fields.get("suspected_pio_count", 0)
-    case.incident_type = fields.get("incident_type")
+    # Update metadata fields (only if currently blank)
+    if not case.pertains_service_no: case.pertains_service_no = fields.get("pertains_service_no")
+    if not case.pertains_name: case.pertains_name = fields.get("pertains_name")
+    if not case.pertains_unit: case.pertains_unit = fields.get("pertains_unit")
+    if not case.analyst: case.analyst = fields.get("analyst")
+    if not case.investigating_officer: case.investigating_officer = fields.get("investigating_officer")
+    if not case.date_deposition: case.date_deposition = fields.get("date_deposition")
+    if not case.date_issuance: case.date_issuance = fields.get("date_issuance")
+    if not case.date_intimation: case.date_intimation = fields.get("date_intimation")
+    if not case.date_return: case.date_return = fields.get("date_return")
+    if not case.command: case.command = fields.get("command")
+    if not case.suspected_pio_numbers: case.suspected_pio_numbers = fields.get("suspected_pio_numbers")
+    if not case.suspected_pio_count: case.suspected_pio_count = fields.get("suspected_pio_count", 0)
+    if not case.incident_type: case.incident_type = fields.get("incident_type")
+    case.year = extract_case_year(
+        source_folder=case.source_folder,
+        case_name=case.case_name,
+        date_deposition=fields.get("date_deposition"),
+        created_at=case.created_at
+    )
 
     case.updated_at = datetime.utcnow()
     db.commit()

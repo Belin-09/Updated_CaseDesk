@@ -1,5 +1,6 @@
 import pytesseract
 from PIL import Image, ImageEnhance
+import re
 
 import os
 from dotenv import load_dotenv
@@ -19,8 +20,8 @@ def preprocess_image(image: Image.Image) -> Image.Image:
         # Scale up by 2x only if the image is quite small
         image = image.resize((w * 2, h * 2), Image.Resampling.LANCZOS)
         
-    # Enhance contrast (skip sharpening to avoid noise artifacts)
-    image = ImageEnhance.Contrast(image).enhance(2.0)
+    # Enhance contrast heavily (skip sharpening to avoid noise artifacts)
+    image = ImageEnhance.Contrast(image).enhance(4.0)
     
     return image
 
@@ -81,13 +82,22 @@ def extract_from_image(file_path: str) -> tuple[str, float]:
         
         # Combine texts and confidences
         all_texts = []
+        all_confidences = conf_full.copy()
+        
         if text_full.strip():
             all_texts.append(text_full.strip())
-        if text_bottom.strip() and text_bottom.strip() not in text_full:
-            all_texts.append(text_bottom.strip())
+            
+        if text_bottom.strip():
+            # Normalize whitespace for a resilient deduplication check
+            norm_full = re.sub(r'\s+', '', text_full.lower())
+            norm_bottom = re.sub(r'\s+', '', text_bottom.lower())
+            
+            # Only append if the normalized bottom text isn't fully contained in the full text
+            if norm_bottom and norm_bottom not in norm_full:
+                all_texts.append(text_bottom.strip())
+                all_confidences.extend(conf_bottom)
             
         combined_text = "\n".join(all_texts)
-        all_confidences = conf_full + conf_bottom
         avg_confidence = sum(all_confidences) / len(all_confidences) if all_confidences else 0.0
         
         return combined_text, round(avg_confidence, 2)

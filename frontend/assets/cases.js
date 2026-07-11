@@ -19,7 +19,8 @@ const pageTitle = document.getElementById("pageTitle");
 const yearGrid = document.getElementById("yearGrid");
 const casesListContainer = document.getElementById("casesListContainer");
 
-let selectedYear = null;
+const casesUrlParams = new URLSearchParams(window.location.search);
+let selectedYear = casesUrlParams.get("year") || null;
 let searchDebounce;
 
 // ── Drilldown Router ───────────────────────────────────────────────────────
@@ -157,7 +158,7 @@ function renderCases(cases) {
       ? `<span class="badge badge-hits">${c.hit_count} hit${c.hit_count !== 1 ? 's' : ''}</span>`
       : '';
 
-    const detailUrl = `case-detail.html?id=${c.id}&v=1.6${isSearchActive ? '&search=' + encodeURIComponent(searchTerm) : ''}`;
+    const detailUrl = `case-detail.html?id=${c.id}&v=1.6${isSearchActive ? '&search=' + encodeURIComponent(searchTerm) : ''}${selectedYear ? '&year=' + encodeURIComponent(selectedYear) : ''}`;
 
     let matchedFilesHtml = "";
     if (c.matched_files && c.matched_files.length > 0) {

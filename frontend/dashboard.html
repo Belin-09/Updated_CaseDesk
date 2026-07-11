@@ -7,7 +7,9 @@
   <link rel="stylesheet" href="assets/style.css?v=2.5">
   <script src="assets/chart.umd.min.js"></script>
 </head>
-<body>
+<body class="case-detail-page">
+
+  <div class="page-background-glow"></div>
 
   <nav class="navbar">
     <div class="navbar-left">
@@ -53,18 +55,24 @@
 
       <div class="chart-card">
         <h3>🛡️ 3. Cases per Command per Year</h3>
-        <div class="chart-container">
-          <div class="chart-scroll-inner" id="casesByCommandWrapper" style="height: 100%; min-width: 100%;">
-            <canvas id="casesByCommandChart"></canvas>
+        <div style="display: flex; height: 100%; min-height: 250px; margin-top: 15px;">
+          <div id="commandLegend" style="width: 100px; padding-right: 8px; display: flex; flex-direction: column; justify-content: center; gap: 10px; border-right: 1px solid rgba(255,255,255,0.06); margin-right: 8px; overflow-y: auto;"></div>
+          <div class="chart-container" style="flex: 1; min-height: unset;">
+            <div class="chart-scroll-inner" id="casesByCommandWrapper" style="height: 100%;">
+              <canvas id="casesByCommandChart"></canvas>
+            </div>
           </div>
         </div>
       </div>
 
       <div class="chart-card">
         <h3>📂 4. Cases per Type per Year</h3>
-        <div class="chart-container">
-          <div class="chart-scroll-inner" id="casesByTypeWrapper" style="height: 100%; min-width: 100%;">
-            <canvas id="casesByTypeChart"></canvas>
+        <div style="display: flex; height: 100%; min-height: 250px; margin-top: 15px;">
+          <div id="typeLegend" style="width: 100px; padding-right: 8px; display: flex; flex-direction: column; justify-content: center; gap: 10px; border-right: 1px solid rgba(255,255,255,0.06); margin-right: 8px; overflow-y: auto;"></div>
+          <div class="chart-container" style="flex: 1; min-height: unset;">
+            <div class="chart-scroll-inner" id="casesByTypeWrapper" style="height: 100%;">
+              <canvas id="casesByTypeChart"></canvas>
+            </div>
           </div>
         </div>
       </div>

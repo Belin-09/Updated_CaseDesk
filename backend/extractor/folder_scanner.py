@@ -165,7 +165,7 @@ def process_case_folder(case_name: str, case_path: str, is_file: bool = False) -
                 "file_error": str(e)
             }
 
-    with ThreadPoolExecutor() as executor:
+    with ThreadPoolExecutor(max_workers=2) as executor:
         results = list(executor.map(process_file, files))
 
     for res in results:

@@ -8,7 +8,12 @@ load_dotenv()
 
 DB_URL = os.getenv("DB_URL")
 
-engine = create_engine(DB_URL)
+engine = create_engine(
+    DB_URL,
+    pool_size=20,
+    max_overflow=30,
+    pool_recycle=3600
+)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 

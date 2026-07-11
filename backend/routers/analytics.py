@@ -19,10 +19,11 @@ def extract_year_from_case(c: Case) -> str:
         m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
         if m:
             return m.group(1)
-    if c.date:
-        m = re.search(r"\b(20\d\d|19\d\d)\b", c.date)
-        if m:
-            return m.group(1)
+    for date_field in [c.date_deposition, c.date_issuance, c.date_intimation, c.date_return]:
+        if date_field:
+            m = re.search(r"\b(20\d\d|19\d\d)\b", date_field)
+            if m:
+                return m.group(1)
     if c.created_at:
         return str(c.created_at.year)
     return "Unknown"
@@ -33,7 +34,8 @@ def get_analytics_summary(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    all_cases = db.query(Case).all()
+    from sqlalchemy.orm import defer
+    all_cases = db.query(Case).options(defer(Case.raw_text)).all()
 
     total_cases = len(all_cases)
     open_cases = sum(1 for c in all_cases if c.status == "open")
@@ -55,7 +57,7 @@ def get_analytics_summary(
     case_types = ["Int (Cyber Espionage)", "Int (Social Media violation)", "DV / Misc"]
 
     for c in all_cases:
-        yr = extract_year_from_case(c)
+        yr = c.year or "Unknown"
         year_counts[yr] += 1
 
         pio_str = getattr(c, "suspected_pio_numbers", None)
@@ -130,12 +132,12 @@ def get_pio_numbers_by_year(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    all_cases = db.query(Case).all()
+    from sqlalchemy.orm import defer
+    all_cases = db.query(Case).filter(Case.year == year).options(defer(Case.raw_text)).all()
     pio_map = defaultdict(list)
     
     for c in all_cases:
-        yr = extract_year_from_case(c)
-        if yr == year and c.suspected_pio_numbers:
+        if c.suspected_pio_numbers:
             # Split and clean
             numbers = [num.strip() for num in c.suspected_pio_numbers.split(",") if num.strip()]
             for num in numbers:

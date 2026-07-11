@@ -46,8 +46,8 @@ COMMAND_KEYWORDS = [
     ("Central", [r"central\s+(?:command|comd)", r"\bcentral\b"]),
     ("Northern", [r"northern\s+(?:command|comd)", r"\bnorthern\b"]),
     ("Southern", [r"southern\s+(?:command|comd)", r"\bsouthern\b"]),
-    ("Eastern", [r"eastern\s+(?:command|comd)", r"\beastern\b"]),
-    ("Western", [r"western\s+(?:command|comd)", r"\bwestern\b"]),
+    ("Eastern", [r"eastern\s+(?:command|comd)", r"(?<!north\s)\beastern\b"]),
+    ("Western", [r"western\s+(?:command|comd)", r"(?<!south\s)\bwestern\b"]),
 ]
 
 def extract_command(hash_text: str) -> Optional[str]:
@@ -145,27 +145,34 @@ def extract_pertains_unit(text: str) -> Optional[str]:
 
 def extract_ro_pattern(text: str) -> Optional[dict]:
     """
-    Extract pertains Service No, Name, and Unit matching the R/O pattern:
+    Extract pertains Service No, Name, and Unit matching the R/O pattern or CFI pattern:
     e.g. 'CYBER FORENSIC INVESTIGATION IN R/O 047588 NB SUB HARISH OF ABC (CASE NO-04)'
+    e.g. 'PERMISSION FOR CFI: 12345678A RANK NAME OF UNIT'
     """
     if not text:
         return None
-    pattern = r"\br/o\s+([A-Z0-9\-\s]{4,15}?)\s+(.+?)\s+of\s+([^(\n]+)"
-    match = re.search(pattern, text, re.IGNORECASE)
-    if match:
-        service_no = match.group(1).strip()
-        name = match.group(2).strip()
-        unit = match.group(3).strip()
         
-        name = re.sub(r"\s+", " ", name)
-        unit = re.sub(r"\s+", " ", unit)
-        
-        if service_no and name and unit:
-            return {
-                "pertains_service_no": service_no,
-                "pertains_name": name,
-                "pertains_unit": unit
-            }
+    patterns = [
+        r"\br/o\s+([A-Z0-9\-\s]{4,15}?)\s+(.+?)\s+of\s+(.+?)(?:\s+of\s+|\n|\(|$)",
+        r"PERMISSION\s+FOR\s+CFI:\s+([A-Z0-9\-\s]{4,15}?)\s+(.+?)\s+OF\s+(.+?)(?:\s+OF\s+|\n|\(|$)"
+    ]
+    
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            service_no = match.group(1).strip()
+            name = match.group(2).strip()
+            unit = match.group(3).strip()
+            
+            name = re.sub(r"\s+", " ", name)
+            unit = re.sub(r"\s+", " ", unit)
+            
+            if service_no and name and unit:
+                return {
+                    "pertains_service_no": service_no,
+                    "pertains_name": name,
+                    "pertains_unit": unit
+                }
     return None
 
 def split_merged_text_by_file(merged_text: str) -> dict:
@@ -188,8 +195,16 @@ def extract_analyst_name(files_dict: dict) -> Optional[str]:
         if "noting" in fname and "sheet" in fname:
             lines = text.split("\n")
             for i, line in enumerate(lines):
-                if "digital forensic analyst" in line.lower():
+                lower_line = line.lower()
+                if "digital forensic analyst" in lower_line:
                     for j in range(i - 1, max(-1, i - 5), -1):
+                        m = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[j])
+                        if m:
+                            val = m.group(1).strip()
+                            if val:
+                                return val
+                elif "pu for perusal, tech review and approval" in lower_line or "tech review and approval pl" in lower_line:
+                    for j in range(i + 1, min(len(lines), i + 6)):
                         m = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[j])
                         if m:
                             val = m.group(1).strip()
@@ -198,11 +213,13 @@ def extract_analyst_name(files_dict: dict) -> Optional[str]:
     return None
 
 def extract_investigating_officer(files_dict: dict) -> Optional[str]:
+    io_keywords = ["investigating officer", "investigating offr", "inv officer", "oic cyber forensic lab"]
     for fname, text in files_dict.items():
         if "covering" in fname and "letter" in fname:
             lines = text.split("\n")
             for i, line in enumerate(lines):
-                if "investigating officer" in line.lower():
+                lower_line = line.lower()
+                if any(k in lower_line for k in io_keywords):
                     rank = None
                     name = None
                     rank_idx = -1
@@ -350,3 +367,24 @@ def count_extracted_fields(fields: dict) -> int:
         "date_deposition", "date_issuance", "date_intimation"
     ]
     return sum(1 for k in extractable_fields if fields.get(k) is not None)
+
+
+# ── Year Extraction Helper ────────────────────────────────────────────────────
+
+def extract_case_year(source_folder=None, case_name=None, date_deposition=None, created_at=None) -> str:
+    """Extract 4-digit year from case metadata. Used to populate the year column."""
+    if source_folder:
+        m = re.search(r"[\/\\](20\d\d|19\d\d)[\/\\]", source_folder)
+        if m:
+            return m.group(1)
+    if case_name:
+        m = re.search(r"\b(20\d\d|19\d\d)\b", case_name)
+        if m:
+            return m.group(1)
+    if date_deposition:
+        m = re.search(r"\b(20\d\d|19\d\d)\b", date_deposition)
+        if m:
+            return m.group(1)
+    if created_at:
+        return str(created_at.year)
+    return "Unknown"
