@@ -53,9 +53,20 @@
         <div class="page-title" id="pageTitle">Cases</div>
         <div class="page-subtitle" id="totalCount">Loading...</div>
       </div>
-      <div style="display:flex; gap:10px;">
-        <button class="btn-secondary" id="scanFolderBtn">📁 Scan Folder</button>
-        <button class="btn-primary" id="uploadBtn">+ Upload Document</button>
+      <div class="header-actions">
+        <!-- New PIO Intelligence Button -->
+        <button class="btn-action-uniform" id="pioIntelBtn">
+          <svg fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><circle cx="12" cy="12" r="6"></circle><circle cx="12" cy="12" r="2"></circle></svg>
+          PIO Intelligence
+        </button>
+        <button class="btn-action-uniform" id="scanFolderBtn">
+          <svg fill="none" stroke="#fbbf24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"></path></svg>
+          Scan Folder
+        </button>
+        <button class="btn-action-uniform" id="uploadBtn">
+          <svg fill="none" stroke="#4f9cff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          Upload Document
+        </button>
       </div>
     </div>
 
@@ -64,10 +75,10 @@
 
     <!-- Cases List Drilldown View (hidden by default) -->
     <div id="casesListContainer" style="display: none;">
-      <div class="toolbar" style="background: rgba(15, 20, 25, 0.45); border: 1px solid rgba(79, 156, 255, 0.15); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3); border-radius: 12px; padding: 16px; margin-bottom: 24px;">
-        <input type="text" id="searchInput" placeholder="Search keywords, officer, location..." style="flex: 2; padding: 14px 20px; background: rgba(0,0,0,0.2); border: 1px solid #2a3441; border-radius: 8px; color: #ffffff; font-size: 15px; outline: none; transition: all 0.2s ease;" onfocus="this.style.borderColor='#4f9cff'; this.style.boxShadow='0 0 0 1px #4f9cff, 0 8px 30px rgba(79,156,255,0.15)';" onblur="this.style.borderColor='#2a3441'; this.style.boxShadow='none';">
-        <input type="text" id="caseSearchInput" placeholder="Search Case No / File Name / ID..." style="flex: 1.2; min-width: 180px; padding: 14px 20px; background: rgba(0,0,0,0.2); border: 1px solid #2a3441; border-radius: 8px; color: #ffffff; font-size: 15px; outline: none; transition: all 0.2s ease;" onfocus="this.style.borderColor='#4f9cff'; this.style.boxShadow='0 0 0 1px #4f9cff, 0 8px 30px rgba(79,156,255,0.15)';" onblur="this.style.borderColor='#2a3441'; this.style.boxShadow='none';">
-        <select id="sortBy" style="padding: 14px 20px; background: rgba(42, 52, 65, 0.4); border: 1px solid #2a3441; border-radius: 8px; color: #e8eaed; font-size: 14px; outline: none; cursor: pointer;">
+      <div class="toolbar">
+        <input type="text" id="searchInput" placeholder="Search keywords, officer, location...">
+        <input type="text" id="caseSearchInput" placeholder="Search Case No / File Name / ID...">
+        <select id="sortBy">
           <option value="created_at">Date Created</option>
           <option value="date_deposition">Deposition Date</option>
           <option value="date_issuance">Hash Letter Issuance</option>
@@ -79,9 +90,13 @@
           <option value="pertains_name">Name</option>
           <option value="pertains_unit">Unit</option>
         </select>
-        <select id="sortOrder" style="padding: 14px 20px; background: rgba(42, 52, 65, 0.4); border: 1px solid #2a3441; border-radius: 8px; color: #e8eaed; font-size: 14px; outline: none; cursor: pointer;">
+        <select id="sortOrder">
           <option value="desc">Descending</option>
           <option value="asc">Ascending</option>
+        </select>
+        <select id="pioFilter">
+          <option value="">All Cases</option>
+          <option value="true">Confirmed PIO Only</option>
         </select>
       </div>
 
@@ -148,6 +163,7 @@
 
       <div class="modal-actions">
         <button class="btn-secondary" id="cancelScanBtn">Close</button>
+        <button class="btn-secondary" id="stopScanBtn" style="display:none; background: #dc2626; color: white; border-color: #ef4444;">Stop Scan</button>
         <button class="btn-primary" id="confirmScanBtn">Scan</button>
       </div>
     </div>
@@ -216,6 +232,39 @@
       
       <div class="modal-actions" style="margin-top: 20px;">
         <button class="btn-secondary" id="closeUserMgmtBtn">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- PIO Intelligence Modal -->
+  <div class="modal-overlay" id="pioIntelModal">
+    <div class="modal-box" style="max-width: 500px;">
+      <h2 style="margin-top:0; font-size: 20px; font-weight: 500; display:flex; align-items:center; gap:8px;">
+        <span style="font-size:24px;">🎯</span> PIO Intelligence
+      </h2>
+      <p style="color: #8a93a3; font-size: 14px; margin-bottom: 24px; line-height: 1.5;">
+        Cross-reference Suspected PIO numbers across all cases against a master list of confirmed PIO numbers.
+      </p>
+
+      <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px solid #2a3441; margin-bottom: 20px;">
+        <h3 style="margin-top:0; font-size: 14px; color: #cbd5e1; margin-bottom: 12px;">1. Upload Master List</h3>
+        <p style="font-size: 12px; color: #8a93a3; margin-bottom: 12px;">Supports .pdf, .docx, and .xlsx. All 10-digit numbers will be extracted and saved to the master list.</p>
+        <input type="file" id="pioFileInput" accept=".pdf,.docx,.xlsx" style="margin-bottom: 12px; width:100%; color: #8a93a3;">
+        <button class="btn-secondary" id="uploadPioBtn" style="width: 100%;">Upload Master List</button>
+      </div>
+
+      <div style="background: rgba(0,0,0,0.2); padding: 16px; border-radius: 8px; border: 1px solid #2a3441; margin-bottom: 20px;">
+        <h3 style="margin-top:0; font-size: 14px; color: #cbd5e1; margin-bottom: 12px;">2. Run Cross-Reference</h3>
+        <p style="font-size: 12px; color: #8a93a3; margin-bottom: 12px;">Scan all existing cases and flag any that contain numbers matching the master list.</p>
+        <button class="primary-btn" id="runPioCrossRefBtn" style="width: 100%; background: rgba(168, 85, 247, 0.1); color: #c084fc; border: 1px solid rgba(168, 85, 247, 0.2);">
+          Run Cross-Reference Check
+        </button>
+      </div>
+
+      <div id="pioStatus" class="upload-status" style="margin-bottom: 20px;"></div>
+
+      <div class="modal-actions">
+        <button class="btn-secondary" id="closePioModalBtn">Close</button>
       </div>
     </div>
   </div>

@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, defer
 from typing import Optional
 from datetime import datetime
 from database import get_db
@@ -41,7 +41,7 @@ def list_flagged_cases(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    query = db.query(Case).filter(Case.error_flag == True)
+    query = db.query(Case).options(defer(Case.raw_text)).filter(Case.error_flag == True)
 
     if error_reason:
         query = query.filter(Case.error_reason == error_reason)

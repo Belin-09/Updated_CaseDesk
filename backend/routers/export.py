@@ -103,9 +103,8 @@ def _build_pdf(case: Case, files: list, file_path: str):
 
     # ── Case overview table ─────────────────────────────────────────────
     overview_data = [
-        ["Case Name", case.case_name or "—", "Status", case.status.upper() if case.status else "—"],
-        ["Incident Type", case.incident_type or "—", "Flagged", "Yes" if case.error_flag else "No"],
-        ["Uploaded By", case.uploaded_by or "—", "", ""],
+        ["Case Name", case.case_name or "—", "Flagged", "Yes" if case.error_flag else "No"],
+        ["Incident Type", case.incident_type or "—", "Uploaded By", case.uploaded_by or "—"],
     ]
 
     overview_table = Table(overview_data, colWidths=[80, 150, 80, 150])
@@ -113,11 +112,11 @@ def _build_pdf(case: Case, files: list, file_path: str):
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
         ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4f9cff")),
-        ("TEXTCOLOR", (2, 0), (2, -1), colors.HexColor("#4f9cff")),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("TOPPADDING", (0, 0), (-1, -1), 8),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e0e0e0")),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#334155")),
+        ("TEXTCOLOR", (2, 0), (2, -1), colors.HexColor("#334155")),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING", (0, 0), (-1, -1), 10),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     elements.append(overview_table)
@@ -136,11 +135,11 @@ def _build_pdf(case: Case, files: list, file_path: str):
         ("FONTSIZE", (0, 0), (-1, -1), 9),
         ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
         ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
-        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#4f9cff")),
-        ("TEXTCOLOR", (2, 0), (2, -1), colors.HexColor("#4f9cff")),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-        ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e0e0e0")),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#334155")),
+        ("TEXTCOLOR", (2, 0), (2, -1), colors.HexColor("#334155")),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
         ("VALIGN", (0, 0), (-1, -1), "TOP"),
     ]))
     elements.append(custom_table)
@@ -155,30 +154,46 @@ def _build_pdf(case: Case, files: list, file_path: str):
             file_data.append([f.file_name, f.file_type, confidence, status])
 
         file_table = Table(file_data, colWidths=[200, 80, 100, 80])
-        file_table.setStyle(TableStyle([
+        
+        style_cmds = [
             ("FONTSIZE", (0, 0), (-1, -1), 9),
             ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#f0f0f0")),
-            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e0e0e0")),
-            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
-            ("TOPPADDING", (0, 0), (-1, -1), 6),
-        ]))
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#e2e8f0")),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ]
+        
+        for i in range(1, len(file_data)):
+            if i % 2 == 0:
+                style_cmds.append(("BACKGROUND", (0, i), (-1, i), colors.HexColor("#f8fafc")))
+                
+        file_table.setStyle(TableStyle(style_cmds))
         elements.append(file_table)
     else:
         elements.append(Paragraph("No source files recorded.", body_style))
 
     # ── Review / audit info ─────────────────────────────────────────────
     elements.append(Paragraph("Review Status", section_style))
-    review_lines = [
-        f"Error Flag: {'Yes — ' + case.error_reason if case.error_flag else 'No'}",
-        f"Review Note: {case.review_note or '—'}",
-        f"Reviewed By: {case.reviewed_by or '—'}",
-        f"Reviewed At: {case.reviewed_at.strftime('%d %b %Y, %H:%M') if case.reviewed_at else '—'}",
-        f"Uploaded By: {case.uploaded_by or '—'}",
-        f"Created At: {case.created_at.strftime('%d %b %Y, %H:%M') if case.created_at else '—'}",
+    review_data = [
+        ["Error Flag", f"{'Yes — ' + case.error_reason if case.error_flag else 'No'}", "Review Note", case.review_note or "—"],
+        ["Reviewed By", case.reviewed_by or "—", "Reviewed At", case.reviewed_at.strftime('%d %b %Y, %H:%M') if case.reviewed_at else "—"],
+        ["Uploaded By", case.uploaded_by or "—", "Created At", case.created_at.strftime('%d %b %Y, %H:%M') if case.created_at else "—"],
     ]
-    for line in review_lines:
-        elements.append(Paragraph(line, body_style))
+    
+    review_table = Table(review_data, colWidths=[100, 150, 90, 150])
+    review_table.setStyle(TableStyle([
+        ("FONTSIZE", (0, 0), (-1, -1), 9),
+        ("FONTNAME", (0, 0), (0, -1), "Helvetica-Bold"),
+        ("FONTNAME", (2, 0), (2, -1), "Helvetica-Bold"),
+        ("TEXTCOLOR", (0, 0), (0, -1), colors.HexColor("#334155")),
+        ("TEXTCOLOR", (2, 0), (2, -1), colors.HexColor("#334155")),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+        ("TOPPADDING", (0, 0), (-1, -1), 8),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#cbd5e1")),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+    ]))
+    elements.append(review_table)
 
     # ── Footer note ──────────────────────────────────────────────────────
     elements.append(Spacer(1, 20))

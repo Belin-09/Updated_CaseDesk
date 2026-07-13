@@ -45,6 +45,8 @@ class Case(Base):
     command       = Column(String(100), nullable=True, index=True)
     suspected_pio_numbers = Column(Text, nullable=True)
     suspected_pio_count   = Column(Integer, default=0)
+    has_confirmed_pio     = Column(Boolean, default=False, index=True)
+    confirmed_pio_matches = Column(Text, nullable=True)
 
     # New custom metadata fields
     analyst = Column(String(255), nullable=True)
@@ -59,6 +61,14 @@ class Case(Base):
 
     # Pre-computed year for fast SQL filtering
     year = Column(String(10), nullable=True, index=True)
+
+
+class ConfirmedPIO(Base):
+    __tablename__ = "confirmed_pios"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    phone_number = Column(String(50), unique=True, index=True, nullable=False)
+    created_at = Column(DateTime, server_default=func.now())
 
 class CaseFile(Base):
     __tablename__ = "case_files"

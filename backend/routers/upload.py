@@ -42,6 +42,7 @@ scan_state = {
     "finished_at": None,
     "cases": [],
     "error": None,
+    "cancel_requested": False,
 }
 
 scan_lock = threading.Lock()
@@ -192,6 +193,8 @@ def process_single_folder(folder: dict, username: str):
     db = SessionLocal()
     try:
         with scan_lock:
+            if scan_state.get("cancel_requested"):
+                return
             scan_state["current_case"] = case_name
 
         fingerprint = get_folder_fingerprint(case_path, is_file)
@@ -215,6 +218,8 @@ def process_single_folder(folder: dict, username: str):
                         "status": "skipped",
                         "reason": "No changes detected"
                     })
+                    if len(scan_state["cases"]) > 100:
+                        scan_state["cases"].pop(0)
                 return
 
             # Folder changed — reprocess and UPDATE existing case
@@ -281,6 +286,8 @@ def process_single_folder(folder: dict, username: str):
                     "error_flag": data["error_flag"],
                     "error_reason": data["error_reason"],
                 })
+                if len(scan_state["cases"]) > 100:
+                    scan_state["cases"].pop(0)
 
         else:
             # New case folder
@@ -288,6 +295,7 @@ def process_single_folder(folder: dict, username: str):
 
             case = Case(
                 case_name=data["case_name"],
+                created_at=folder.get("assigned_created_at", datetime.utcnow()),
                 source_folder=data["source_folder"],
                 file_name=data["file_name"],
                 file_path=data["file_path"],
@@ -353,11 +361,13 @@ def process_single_folder(folder: dict, username: str):
                     "error_flag": data["error_flag"],
                     "error_reason": data["error_reason"],
                 })
+                if len(scan_state["cases"]) > 100:
+                    scan_state["cases"].pop(0)
 
     except Exception as e:
         try:
             db.rollback()
-        except:
+        except Exception:
             pass
         with scan_lock:
             scan_state["failed"] += 1
@@ -366,6 +376,8 @@ def process_single_folder(folder: dict, username: str):
                 "status": "failed",
                 "reason": str(e)
             })
+            if len(scan_state["cases"]) > 100:
+                scan_state["cases"].pop(0)
     finally:
         db.close()
 
@@ -380,6 +392,11 @@ def run_folder_scan(root_path: str, username: str, scan_id: str):
 
         with scan_lock:
             scan_state["total"] = len(case_folders)
+
+        from datetime import timedelta
+        now = datetime.utcnow()
+        for i, folder in enumerate(case_folders):
+            folder["assigned_created_at"] = now - timedelta(seconds=i)
 
         # Calculate optimal worker threads count
         num_workers = min(4, os.cpu_count() or 2)
@@ -396,7 +413,7 @@ def run_folder_scan(root_path: str, username: str, scan_id: str):
                     print(f"Error executing scan thread task: {e}")
 
         with scan_lock:
-            scan_state["status"] = "completed"
+            scan_state["status"] = "cancelled" if scan_state.get("cancel_requested") else "completed"
             scan_state["active"] = False
             scan_state["current_case"] = None
             scan_state["finished_at"] = datetime.utcnow().isoformat()
@@ -441,6 +458,7 @@ def scan_folder(
             "reprocessed": 0,
             "failed": 0,
             "current_case": None,
+            "cancel_requested": False,
             "status": "running",
             "started_at": datetime.utcnow().isoformat(),
             "finished_at": None,
@@ -462,6 +480,15 @@ def scan_folder(
 def get_scan_status(current_user=Depends(get_current_user)):
     with scan_lock:
         return dict(scan_state)
+
+
+@router.post("/cancel-scan")
+def cancel_scan(current_user=Depends(get_current_user)):
+    with scan_lock:
+        if not scan_state["active"]:
+            raise HTTPException(status_code=400, detail="No active scan to cancel.")
+        scan_state["cancel_requested"] = True
+    return {"message": "Cancellation requested"}
 
 
 # ── Local folder picker dialog ─────────────────────────────────────────────

@@ -4,6 +4,7 @@ from extractor.field_parser import parse_fields, count_extracted_fields
 from validator import validate_extraction
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor
+import re
 
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".jpg", ".jpeg", ".png"}
 
@@ -39,6 +40,9 @@ def get_case_folders(root_path: str) -> list[dict]:
     Returns list of {case_name, case_path, is_file}
     """
     case_folders = []
+
+    # Standardize slashes to prevent string-mismatch duplicates
+    root_path = os.path.normpath(root_path)
 
     if not os.path.exists(root_path):
         raise ValueError(f"Root path does not exist: {root_path}")
@@ -95,6 +99,10 @@ def get_case_folders(root_path: str) -> list[dict]:
                     "is_file": False
                 })
 
+    def natural_sort_key(s):
+        return [int(text) if text.isdigit() else text.lower() for text in re.split(r'(\d+)', s)]
+        
+    case_folders.sort(key=lambda x: natural_sort_key(x["case_name"]))
     return case_folders
 
 

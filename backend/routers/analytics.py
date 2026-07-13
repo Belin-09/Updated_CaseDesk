@@ -9,6 +9,8 @@ from auth import get_current_user
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 
+from sqlalchemy import func
+
 def extract_year_from_case(c: Case) -> str:
     """Extract 4-digit year from source_folder, case_name, date, or created_at."""
     if c.source_folder:
@@ -34,45 +36,58 @@ def get_analytics_summary(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    from sqlalchemy.orm import defer
-    all_cases = db.query(Case).options(defer(Case.raw_text)).all()
+    # 1. Summary stats via aggregations
+    status_counts = db.query(Case.status, func.count(Case.id)).group_by(Case.status).all()
+    
+    total_cases = 0
+    open_cases = 0
+    closed_cases = 0
+    pending_cases = 0
+    
+    for status, count in status_counts:
+        total_cases += count
+        if status == "open":
+            open_cases += count
+        elif status == "closed":
+            closed_cases += count
+        elif status == "pending":
+            pending_cases += count
 
-    total_cases = len(all_cases)
-    open_cases = sum(1 for c in all_cases if c.status == "open")
-    closed_cases = sum(1 for c in all_cases if c.status == "closed")
-    pending_cases = sum(1 for c in all_cases if c.status == "pending")
-    flagged_cases = sum(1 for c in all_cases if c.error_flag)
-    total_pio_numbers = sum(getattr(c, "suspected_pio_count", 0) or 0 for c in all_cases)
+    flagged_cases = db.query(func.count(Case.id)).filter(Case.error_flag == True).scalar() or 0
+    total_pio_numbers = int(db.query(func.sum(Case.suspected_pio_count)).scalar() or 0)
 
-    # 1. Cases per Year
+    # 2. Cases per Year
     year_counts = defaultdict(int)
-    # 2. PIO numbers frequency per Year
-    year_pio_freq = defaultdict(lambda: defaultdict(int))
+    yr_counts_db = db.query(Case.year, func.count(Case.id)).group_by(Case.year).all()
+    for yr, count in yr_counts_db:
+        year_counts[yr or "Unknown"] += count
+
     # 3. Cases per Command per Year
     year_command = defaultdict(lambda: defaultdict(int))
+    cmd_yr_counts = db.query(Case.year, Case.command, func.count(Case.id)).group_by(Case.year, Case.command).all()
+    for yr, cmd, count in cmd_yr_counts:
+        year_command[yr or "Unknown"][cmd or "Unassigned"] += count
+
     # 4. Cases per Type per Year
     year_type = defaultdict(lambda: defaultdict(int))
-
-    commands = ["Central", "Northern", "Southern", "Eastern", "Western", "North Eastern", "South Western"]
+    type_yr_counts = db.query(Case.year, Case.incident_type, func.count(Case.id)).group_by(Case.year, Case.incident_type).all()
     case_types = ["Int (Cyber Espionage)", "Int (Social Media violation)", "DV / Misc"]
+    
+    for yr, ctype, count in type_yr_counts:
+        mapped_type = ctype if ctype in case_types else "DV / Misc"
+        year_type[yr or "Unknown"][mapped_type] += count
 
-    for c in all_cases:
-        yr = c.year or "Unknown"
-        year_counts[yr] += 1
-
-        pio_str = getattr(c, "suspected_pio_numbers", None)
+    # 5. PIO numbers frequency per Year
+    # Load only necessary string columns to avoid high memory usage
+    year_pio_freq = defaultdict(lambda: defaultdict(int))
+    pio_cases = db.query(Case.year, Case.suspected_pio_numbers).filter(Case.suspected_pio_numbers.isnot(None)).all()
+    
+    for yr, pio_str in pio_cases:
+        y = yr or "Unknown"
         if pio_str:
             nums = [n.strip() for n in pio_str.split(",") if n.strip()]
             for n in nums:
-                year_pio_freq[yr][n] += 1
-
-        cmd = getattr(c, "command", None) or "Unassigned"
-        year_command[yr][cmd] += 1
-
-        ctype = c.incident_type or "DV / Misc"
-        if ctype not in case_types:
-            ctype = "DV / Misc"
-        year_type[yr][ctype] += 1
+                year_pio_freq[y][n] += 1
 
     sorted_years = sorted([y for y in year_counts.keys() if y != "Unknown"], reverse=True)
     if "Unknown" in year_counts:
@@ -92,6 +107,8 @@ def get_analytics_summary(
             "details": details
         })
 
+    commands = ["Central", "Northern", "Southern", "Eastern", "Western", "North Eastern", "South Western"]
+    
     cases_by_command_year = {
         "years": sorted_years,
         "commands": commands + ["Unassigned"],
@@ -132,18 +149,21 @@ def get_pio_numbers_by_year(
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
-    from sqlalchemy.orm import defer
-    all_cases = db.query(Case).filter(Case.year == year).options(defer(Case.raw_text)).all()
+    # Load only necessary string columns
+    pio_cases = db.query(Case.id, Case.case_name, Case.file_name, Case.suspected_pio_numbers)\
+                  .filter(Case.year == year)\
+                  .filter(Case.suspected_pio_numbers.isnot(None))\
+                  .all()
+                  
     pio_map = defaultdict(list)
     
-    for c in all_cases:
-        if c.suspected_pio_numbers:
-            # Split and clean
-            numbers = [num.strip() for num in c.suspected_pio_numbers.split(",") if num.strip()]
+    for c_id, case_name, file_name, pio_str in pio_cases:
+        if pio_str:
+            numbers = [num.strip() for num in pio_str.split(",") if num.strip()]
             for num in numbers:
                 pio_map[num].append({
-                    "case_id": c.id,
-                    "case_name": c.case_name or c.file_name or f"Case #{c.id}"
+                    "case_id": c_id,
+                    "case_name": case_name or file_name or f"Case #{c_id}"
                 })
                 
     results = []
@@ -151,7 +171,7 @@ def get_pio_numbers_by_year(
         results.append({
             "number": num,
             "occurrences": len(cases),
-            "case_id": cases[0]["case_id"] # Provide a quick link to the first case
+            "case_id": cases[0]["case_id"]
         })
         
     results.sort(key=lambda x: (-x["occurrences"], x["number"]))

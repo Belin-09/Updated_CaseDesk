@@ -73,8 +73,8 @@ def extract_suspected_pio_numbers(text: str) -> tuple[str, int]:
     if not text:
         return "", 0
     patterns = [
-        r"(?:suspected\s+pio|suspect\s+pio|pio\s*(?:no|number)?|pio\s+mobile)[\s:–\-]*(\+?\d[\d\s\-]{8,14}\d)",
-        r"(?:suspected\s+pio|suspect\s+pio)[\s\w]*?(\+?\d{10,12})"
+        r"(?:suspected\s+pio|suspect\s+pio|pio\s*(?:no|number)?|pio\s+mobile|pio\s+contact|suspected\s+pio\s+contact)[\s:–\-]*(\+?\d[\d\s\-]{8,15}\d)",
+        r"(?:suspected\s+pio|suspect\s+pio|pio)[\s\w:\-]*?(\+?\d{10,15})"
     ]
     found_numbers = set()
     for pat in patterns:

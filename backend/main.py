@@ -17,6 +17,8 @@ from routers import analytics as analytics_router
 
 from routers import export as export_router
 
+from routers import pio_management as pio_management_router
+
 
 
 import os
@@ -143,7 +145,7 @@ def startup_db_init():
         "ALTER TABLE cases MODIFY file_name TEXT NULL",
         "ALTER TABLE cases DROP INDEX ft_cases_search",
         "ALTER TABLE cases MODIFY ocr_confidence FLOAT NULL",
-        "ALTER TABLE cases ADD FULLTEXT INDEX ft_cases_search(file_name, file_path, incident_type, raw_text, status, error_reason, review_note, reviewed_by, uploaded_by, case_name, source_folder, command, suspected_pio_numbers, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, date_deposition, date_issuance, date_intimation, date_return)",
+        "ALTER TABLE cases ADD FULLTEXT INDEX ft_cases_search(raw_text, case_name, file_name, source_folder, incident_type, status, command, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, suspected_pio_numbers, error_reason, review_note, uploaded_by)",
         "ALTER TABLE case_files ADD CONSTRAINT fk_casefile_case FOREIGN KEY (case_id) REFERENCES cases(id) ON DELETE CASCADE",
         "ALTER TABLE cases ADD COLUMN year VARCHAR(10) NULL",
     ]
@@ -226,6 +228,7 @@ app.include_router(upload_router.router)
 app.include_router(review_router.router)
 app.include_router(analytics_router.router)
 app.include_router(export_router.router)
+app.include_router(pio_management_router.router)
 
 
 

@@ -1,6 +1,6 @@
 import pdfplumber
 import pytesseract
-from pdf2image import convert_from_path
+from pdf2image import convert_from_path, pdfinfo_from_path
 import os
 from concurrent.futures import ThreadPoolExecutor
 
@@ -27,40 +27,60 @@ def extract_from_digital_pdf(file_path: str) -> tuple[str, None]:
 
 from extractor.image_extractor import preprocess_image, reconstruct_text
 
+def _process_single_page(image, page_num):
+    try:
+        processed_image = preprocess_image(image)
+        data = pytesseract.image_to_data(
+            processed_image,
+            output_type=pytesseract.Output.DICT
+        )
+        page_text = reconstruct_text(data)
+        page_confidences = [
+            int(c) for c in data["conf"] if str(c) != "-1"
+        ]
+        return page_num, page_text, page_confidences
+    except Exception as e:
+        raise RuntimeError(f"Tesseract OCR failed on page {page_num}: {str(e)}")
+
 def extract_from_scanned_pdf(file_path: str) -> tuple[str, float]:
     """Extract text from a scanned PDF using pdf2image + tesseract with layout preservation and preprocessing."""
+    try:
+        # Batch convert all pages to images using native poppler threads
+        images = convert_from_path(
+            file_path,
+            dpi=150,
+            poppler_path=POPPLER_PATH,
+            thread_count=4
+        )
+    except Exception as e:
+        raise RuntimeError(f"convert_from_path failed: {str(e)}")
+
+    results = [None] * len(images)
+    
+    # Process images concurrently using threads
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {
+            executor.submit(_process_single_page, image, idx + 1): idx 
+            for idx, image in enumerate(images)
+        }
+        
+        for future in futures:
+            idx = futures[future]
+            try:
+                _, page_text, page_confidences = future.result()
+                results[idx] = (page_text, page_confidences)
+            except Exception as e:
+                raise e
+
     text = ""
     confidences = []
-
-    try:
-        images = convert_from_path(file_path, dpi=150, poppler_path=POPPLER_PATH)
-    except Exception as e:
-        raise RuntimeError(f"pdf2image failed: {str(e)}")
-
-    def process_page(image):
-        try:
-            processed_image = preprocess_image(image)
-            data = pytesseract.image_to_data(
-                processed_image,
-                output_type=pytesseract.Output.DICT
-            )
-            page_text = reconstruct_text(data)
-            page_confidences = [
-                int(c) for c in data["conf"] if str(c) != "-1"
-            ]
-            return page_text, page_confidences
-        except Exception as e:
-            return None, str(e)
-
-    with ThreadPoolExecutor() as executor:
-        results = list(executor.map(process_page, images))
-
-    for page_text, page_confidences in results:
-        if page_text is None:
-            raise RuntimeError(f"Tesseract OCR failed: {page_confidences}")
-        
-        text += page_text + "\n"
-        confidences.extend(page_confidences)
+    
+    for res in results:
+        if res:
+            page_text, page_confs = res
+            if page_text:
+                text += page_text + "\n"
+            confidences.extend(page_confs)
 
     avg_confidence = sum(confidences) / len(confidences) if confidences else 0.0
     return text.strip(), round(avg_confidence, 2)

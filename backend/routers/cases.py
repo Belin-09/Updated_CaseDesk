@@ -32,22 +32,26 @@ class CaseUpdateRequest(BaseModel):
     status: Optional[str] = None
 
 
-def count_hits(case, search_term: str) -> int:
+def get_search_pattern(search_term: str):
     if not search_term:
-        return 0
+        return None
+        
+    # Strip MySQL boolean fulltext operators to match tokenization
+    search_term = search_term.lstrip('+-~<>"\'')
+    if not search_term:
+        return None
+        
     # Normalize search term by replacing spaces and hyphens with a single space
     search_norm = re.sub(r'[\s\-]+', ' ', search_term.lower()).strip()
     
-    # Only count hits inside raw_text
-    fields = [
-        case.raw_text
-    ]
-    count = 0
-    for field in fields:
-        if field:
-            field_norm = re.sub(r'[\s\-]+', ' ', field.lower())
-            count += field_norm.count(search_norm)
-    return count
+    # We want prefix matching to match FULLTEXT behavior (e.g. +term*)
+    return re.compile(re.escape(search_norm), re.IGNORECASE)
+
+def count_hits(case, search_term: str) -> int:
+    pattern = get_search_pattern(search_term)
+    if not pattern or not case.raw_text:
+        return 0
+    return len(pattern.findall(case.raw_text))
 
 
 # ── GET /cases/years — list all available case years ────────────────────────
@@ -82,6 +86,7 @@ def list_cases(
     error_flag: Optional[bool] = Query(None, description="Filter flagged cases"),
     year: Optional[str] = Query(None, description="Filter cases by year"),
     command: Optional[str] = Query(None, description="Filter cases by military command"),
+    has_confirmed_pio: Optional[bool] = Query(None, description="Filter cases by confirmed PIO match"),
     sort_by: str = Query("created_at", description="Sort field: created_at, date, officer, status"),
     order: str = Query("desc", description="asc or desc"),
     page: int = Query(1, ge=1),
@@ -138,24 +143,19 @@ def list_cases(
                     Case.case_name.ilike(f"%{search_term}"), Case.file_name.ilike(f"%{search_term}")
                 ))
         else:
-            tokens = [t.strip() for t in re.split(r'[\s\-]+', search_term) if t.strip()]
-            if tokens:
-                token_conditions = []
-                for t in tokens:
-                    token_conditions.append(
-                        or_(
-                            Case.case_name.ilike(f"%{t}%"),
-                            Case.file_name.ilike(f"%{t}%"),
-                            Case.analyst.ilike(f"%{t}%"),
-                            Case.investigating_officer.ilike(f"%{t}%"),
-                            Case.pertains_service_no.ilike(f"%{t}%"),
-                            Case.pertains_name.ilike(f"%{t}%"),
-                            Case.pertains_unit.ilike(f"%{t}%"),
-                            Case.incident_type.ilike(f"%{t}%"),
-                            Case.raw_text.ilike(f"%{t}%"),
-                        )
-                    )
-                query = query.filter(and_(*token_conditions))
+            # Use FULLTEXT index for searching across all indexed columns
+            safe_term = search_term.replace('"', '').strip()
+            if ' ' in safe_term:
+                # Multi-word: exact phrase search
+                ft_term = f'"{safe_term}"'
+            else:
+                # Single-word: prefix search
+                ft_term = f'+{safe_term}*'
+            
+            if safe_term:
+                query = query.filter(
+                    text("MATCH(raw_text, case_name, file_name, source_folder, incident_type, status, command, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, suspected_pio_numbers, error_reason, review_note, uploaded_by) AGAINST(:ft_term IN BOOLEAN MODE)")
+                ).params(ft_term=ft_term)
 
     # Filters
     if status:
@@ -171,6 +171,8 @@ def list_cases(
         query = query.filter(Case.error_flag == error_flag)
     if year:
         query = query.filter(Case.year == year)
+    if has_confirmed_pio is not None:
+        query = query.filter(Case.has_confirmed_pio == has_confirmed_pio)
 
     # Sorting
     sort_column = getattr(Case, sort_by, Case.created_at)
@@ -181,33 +183,31 @@ def list_cases(
 
     matched_files_map = defaultdict(list)
     if search:
-        all_cases = query.all()
-        total = len(all_cases)
+        # Get total count efficiently (no data loaded)
+        total = query.count()
 
+        # Paginate at the DB level
+        cases = query.offset((page - 1) * page_size).limit(page_size).all()
+
+        # Count exact hits only for this page's cases
         search_cleaned = search.strip()
-        for c in all_cases:
+        for c in cases:
             c.hit_count = count_hits(c, search_cleaned)
-        total_hits = sum(c.hit_count for c in all_cases)
-
-        # Sort by hit_count descending
-        all_cases.sort(key=lambda x: getattr(x, "hit_count", 0), reverse=True)
-
-        # Paginate in memory
-        start_idx = (page - 1) * page_size
-        cases = all_cases[start_idx:start_idx + page_size]
+        total_hits = sum(c.hit_count for c in cases)
 
         if cases:
-            search_cleaned = search.strip()
             case_ids = [c.id for c in cases]
             cfiles = db.query(CaseFile).filter(CaseFile.case_id.in_(case_ids)).all()
-            for cf in cfiles:
-                if cf.raw_text and search_cleaned.lower() in cf.raw_text.lower():
-                    f_hits = cf.raw_text.lower().count(search_cleaned.lower())
-                    if f_hits > 0:
-                        matched_files_map[cf.case_id].append({
-                            "file_name": cf.file_name,
-                            "hit_count": f_hits
-                        })
+            pattern = get_search_pattern(search_cleaned)
+            if pattern:
+                for cf in cfiles:
+                    if cf.raw_text:
+                        f_hits = len(pattern.findall(cf.raw_text))
+                        if f_hits > 0:
+                            matched_files_map[cf.case_id].append({
+                                "file_name": cf.file_name,
+                                "hit_count": f_hits
+                            })
 
             # Fallback if no files are in the CaseFile table
             for c in cases:
@@ -250,6 +250,7 @@ def list_cases(
                 "error_reason": c.error_reason,
                 "uploaded_by": c.uploaded_by,
                 "created_at": c.created_at,
+                "has_confirmed_pio": c.has_confirmed_pio,
                 "hit_count": getattr(c, "hit_count", 0) if search else 0,
                 "matched_files": matched_files_map.get(c.id, []) if search else []
             }
@@ -294,6 +295,8 @@ import json
 def advanced_search(
     filters: Optional[str] = Query(None, description="JSON array of filters"),
     year: Optional[str] = Query(None, description="Year filter"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user)
 ):
@@ -306,6 +309,11 @@ def advanced_search(
             for f in filter_list:
                 category = f.get("category")
                 term = f.get("term")
+                
+                if category == "confirmed_pio":
+                    query = query.filter(Case.has_confirmed_pio == True)
+                    continue
+
                 if not category or not term:
                     continue
                 
@@ -343,43 +351,63 @@ def advanced_search(
                         )
                     )
                 elif category == "random":
-                    query = query.filter(Case.raw_text.ilike(pattern))
+                    # Use FULLTEXT index for global text search
+                    safe_term = term.replace('"', '').strip()
+                    # Strip leading fulltext operators to prevent MySQL syntax errors
+                    safe_term = safe_term.lstrip('+-~<>')
+                    
+                    if ' ' in safe_term:
+                        # Multi-word: exact phrase search
+                        ft_term = f'"{safe_term}"'
+                    else:
+                        # Single-word: prefix search
+                        ft_term = f'+{safe_term}*'
+                        
+                    if safe_term:
+                        query = query.filter(
+                            text("MATCH(raw_text, case_name, file_name, source_folder, incident_type, status, command, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, suspected_pio_numbers, error_reason, review_note, uploaded_by) AGAINST(:ft_term IN BOOLEAN MODE)")
+                        ).params(ft_term=ft_term)
         except Exception:
             pass
 
     if year and year != "all":
         query = query.filter(Case.year == year)
 
-    filtered_cases = query.all()
+    # Get total count efficiently
+    total = query.count()
+
+    # Paginate at DB level
+    cases = query.order_by(Case.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
     matched_files_map = defaultdict(list)
-    if global_term and filtered_cases:
-        for c in filtered_cases:
+    if global_term and cases:
+        for c in cases:
             c.hit_count = count_hits(c, global_term)
 
-        case_ids = [c.id for c in filtered_cases]
+        case_ids = [c.id for c in cases]
         cfiles = db.query(CaseFile).filter(CaseFile.case_id.in_(case_ids)).all()
-        for cf in cfiles:
-            if cf.raw_text and global_term.lower() in cf.raw_text.lower():
-                f_hits = cf.raw_text.lower().count(global_term.lower())
-                if f_hits > 0:
-                    matched_files_map[cf.case_id].append({
-                        "file_name": cf.file_name,
-                        "hit_count": f_hits
-                    })
+        pattern = get_search_pattern(global_term)
+        if pattern:
+            for cf in cfiles:
+                if cf.raw_text:
+                    f_hits = len(pattern.findall(cf.raw_text))
+                    if f_hits > 0:
+                        matched_files_map[cf.case_id].append({
+                            "file_name": cf.file_name,
+                            "hit_count": f_hits
+                        })
                     
-        for c in filtered_cases:
+        for c in cases:
             if not matched_files_map[c.id] and c.file_name:
-                if c.raw_text and global_term.lower() in c.raw_text.lower():
+                f_hits = count_hits(c, global_term)
+                if f_hits > 0:
                     matched_files_map[c.id].append({
                         "file_name": c.file_name,
-                        "hit_count": getattr(c, "hit_count", 1)
+                        "hit_count": f_hits
                     })
-                    
-        filtered_cases.sort(key=lambda x: getattr(x, "hit_count", 0), reverse=True)
 
     results = []
-    for c in filtered_cases:
+    for c in cases:
         results.append({
             "id": c.id,
             "case_name": c.case_name,
@@ -396,7 +424,13 @@ def advanced_search(
             "hit_count": getattr(c, "hit_count", 0),
             "matched_files": matched_files_map.get(c.id, [])
         })
-    return results
+    return {
+        "total": total,
+        "page": page,
+        "page_size": page_size,
+        "total_pages": (total + page_size - 1) // page_size,
+        "cases": results
+    }
 
 
 # ── GET /cases/{id} — single case detail ──────────────────────────────────
@@ -467,6 +501,8 @@ def get_case(
         "uploaded_by": case.uploaded_by,
         "created_at": case.created_at,
         "updated_at": case.updated_at,
+        "has_confirmed_pio": case.has_confirmed_pio,
+        "confirmed_pio_matches": case.confirmed_pio_matches,
         "files": files_list
     }
 
@@ -852,7 +888,8 @@ def convert_docx_to_html(file_path: str, search_term: str = None) -> str:
         
         if search_term:
             escaped_term = html.escape(search_term)
-            pattern = re.compile(r'(<[^>]+>)|(' + re.escape(escaped_term) + r')', re.IGNORECASE)
+            # Use \b to match prefix word boundaries only, preventing substring highlighting
+            pattern = re.compile(r'(<[^>]+>)|(\b' + re.escape(escaped_term) + r')', re.IGNORECASE)
             hit_index = 0
             def replace_match(m):
                 nonlocal hit_index

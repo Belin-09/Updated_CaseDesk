@@ -37,7 +37,7 @@
       <div id="queryBuilderContainer" style="max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;">
         <div class="filter-row" style="display: flex; background: #0f1419; border: 1px solid #2a3441; border-radius: 12px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.4); transition: border-color 0.2s ease, box-shadow 0.2s ease;">
           
-          <select class="searchYear" style="padding: 16px 20px; background: rgba(42, 52, 65, 0.4); border: none; border-right: 1px solid #2a3441; color: #e8eaed; font-size: 14px; font-weight: 500; outline: none; cursor: pointer; min-width: 120px; appearance: none; -webkit-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill=\'%238a93a3\' height=\'24\' viewBox=\'0 0 24 24\' width=\'24\' xmlns=\'http://www.w3.org/2000/svg\'><path d=\'M7 10l5 5 5-5z\'/></svg>'); background-repeat: no-repeat; background-position: right 10px center;">
+          <select class="searchYear" id="searchYear" style="padding: 16px 20px; background: rgba(42, 52, 65, 0.4); border: none; border-right: 1px solid #2a3441; color: #e8eaed; font-size: 14px; font-weight: 500; outline: none; cursor: pointer; min-width: 120px; appearance: none; -webkit-appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill=\'%238a93a3\' height=\'24\' viewBox=\'0 0 24 24\' width=\'24\' xmlns=\'http://www.w3.org/2000/svg\'><path d=\'M7 10l5 5 5-5z\'/></svg>'); background-repeat: no-repeat; background-position: right 10px center;">
             <option value="all">All Years</option>
           </select>
 
@@ -49,6 +49,7 @@
             <option value="investigating_officer">Investigating Officer</option>
             <option value="pertains">Case Pertains To</option>
             <option value="dates">Key Dates</option>
+            <option value="confirmed_pio">Confirmed PIO Only</option>
             <option value="random" selected>Global Text Search</option>
           </select>
           

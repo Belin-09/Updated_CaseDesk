@@ -7,6 +7,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const resultsCountBadge = document.getElementById("resultsCountBadge");
 
   let searchMetadataOptions = null;
+  let currentPage = 1;
+  let lastFilters = null;
+  let lastHighlightTerm = "";
 
   async function fetchSearchOptions() {
     try {
@@ -32,7 +35,6 @@ document.addEventListener("DOMContentLoaded", () => {
           const q = urlParams.get('q');
           const urlYear = urlParams.get('year');
           
-          const searchYear = document.querySelector(".searchYear");
           if (urlYear && searchYear) {
             searchYear.value = urlYear;
           }
@@ -96,6 +98,9 @@ document.addEventListener("DOMContentLoaded", () => {
           termSelect.appendChild(opt);
         });
       }
+    } else if (cat === "confirmed_pio") {
+      termInput.style.display = "none";
+      termSelect.style.display = "none";
     } else {
       termInput.style.display = "block";
       termSelect.style.display = "none";
@@ -107,8 +112,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const removeBtn = row.querySelector(".remove-row-btn");
     const searchInput = row.querySelector(".searchTermInput");
     
-    catSelect.addEventListener("change", () => {
-        populateRowDropdown(row, catSelect.value);
+    catSelect.addEventListener("change", (e) => {
+      populateRowDropdown(row, e.target.value);
     });
     
     if (removeBtn) {
@@ -151,6 +156,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <option value="investigating_officer">Investigating Officer</option>
             <option value="pertains">Case Pertains To</option>
             <option value="dates">Key Dates</option>
+            <option value="confirmed_pio">Confirmed PIO Only</option>
             <option value="random">Global Text Search</option>
         </select>
         <input type="text" class="searchTermInput" placeholder="Enter search term or keyword..." style="flex: 1; padding: 16px 20px; background: transparent; border: none; color: #ffffff; font-size: 16px; outline: none; width: 100%;" onfocus="this.parentElement.style.borderColor='#4f9cff'; this.parentElement.style.boxShadow='0 0 0 1px #4f9cff, 0 8px 30px rgba(79,156,255,0.15)';" onblur="this.parentElement.style.borderColor='#2a3441'; this.parentElement.style.boxShadow='0 8px 24px rgba(0,0,0,0.4)';">
@@ -214,6 +220,11 @@ document.addEventListener("DOMContentLoaded", () => {
       const termInput = row.querySelector(".searchTermInput");
       const termSelect = row.querySelector(".searchTermSelect");
       
+      if (cat === "confirmed_pio") {
+        filters.push({ category: cat, term: "true" });
+        return;
+      }
+      
       let term = "";
       if (dropdownCats.includes(cat) && termSelect.style.display !== "none") {
         term = termSelect.value;
@@ -239,31 +250,49 @@ document.addEventListener("DOMContentLoaded", () => {
     searchEmptyState.style.display = "none";
     resultsCountBadge.style.display = "none";
 
+    // Determine the best term to highlight (prefer global text search)
+    let highlightTerm = "";
+    const textFilter = filters.find(f => f.category === "random" || f.category === "case_name");
+    if (textFilter) {
+        highlightTerm = textFilter.term;
+    } else if (filters.length > 0) {
+        highlightTerm = filters[0].term;
+    }
+
+    // Save for pagination
+    lastFilters = filters;
+    lastHighlightTerm = highlightTerm;
+    currentPage = 1;
+
+    await fetchPage(1, filters, year, highlightTerm);
+  }
+
+  async function fetchPage(page, filters, year, highlightTerm) {
+    runSearchBtn.disabled = true;
+    runSearchBtn.textContent = "Searching...";
+    if (page === 1) {
+      casesGrid.innerHTML = "";
+      searchEmptyState.style.display = "none";
+      resultsCountBadge.style.display = "none";
+    }
+
     try {
       const params = new URLSearchParams();
-      if (year !== "all") params.append("year", year);
+      if (year && year !== "all") params.append("year", year);
       params.append("filters", JSON.stringify(filters));
+      params.append("page", page);
+      params.append("page_size", 20);
 
       const response = await apiFetch(`/cases/search/advanced?${params.toString()}`);
-      
       if (!response) return;
       if (!response.ok) {
         const err = await response.json();
         throw new Error(err.detail || "Failed to query database.");
       }
 
-      const results = await response.json();
-      
-      // Determine the best term to highlight (prefer global text search)
-      let highlightTerm = "";
-      const textFilter = filters.find(f => f.category === "random" || f.category === "case_name");
-      if (textFilter) {
-          highlightTerm = textFilter.term;
-      } else if (filters.length > 0) {
-          highlightTerm = filters[0].term;
-      }
-
-      displayResults(results, highlightTerm);
+      const data = await response.json();
+      currentPage = data.page;
+      displayResults(data, highlightTerm);
     } catch (err) {
       casesGrid.innerHTML = `
         <div style="grid-column: 1 / -1; text-align: center; color: #ff8080; padding: 40px; border: 1px solid #3a1c1c; background: rgba(58, 28, 28, 0.2); border-radius: 8px;">
@@ -276,7 +305,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   }
 
-  function displayResults(cases, term) {
+  function displayResults(data, term) {
+    const cases = data.cases || data;
+    const total = data.total || cases.length;
+    const page = data.page || 1;
+    const totalPages = data.total_pages || 1;
+
     if (cases.length === 0) {
       resultsCountBadge.style.display = "none";
       searchEmptyState.style.display = "block";
@@ -289,16 +323,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     // Update count badge
-    resultsCountBadge.textContent = `${cases.length} case${cases.length !== 1 ? 's' : ''} found`;
+    resultsCountBadge.textContent = `${total} case${total !== 1 ? 's' : ''} found`;
     resultsCountBadge.style.display = "inline-block";
     searchEmptyState.style.display = "none";
 
     casesGrid.innerHTML = cases.map(c => {
-      const detailUrl = `case-detail.html?id=${c.id}&v=1.8${term ? '&search=' + encodeURIComponent(term) : ''}`;
+      const detailUrl = `case-detail.html?id=${c.id}&v=1.9${term ? '&search=' + encodeURIComponent(term) : ''}`;
       
       const statusBadge = c.error_flag
         ? `<span class="badge badge-flagged">Flagged</span>`
-        : `<span class="badge badge-${c.status || 'open'}">${c.status || 'open'}</span>`;
+        : ``;
 
       const hitsBadge = (term && c.hit_count !== undefined && c.hit_count > 0)
         ? `<span class="badge" style="background: rgba(79, 156, 255, 0.15); color: #4f9cff; border: 1px solid rgba(79, 156, 255, 0.3); font-weight: 700; border-radius: 12px; padding: 2px 8px; font-size: 10px; text-transform: uppercase;">${c.hit_count} Hits</span>`
@@ -373,6 +407,24 @@ document.addEventListener("DOMContentLoaded", () => {
         </div>
       `;
     }).join("");
+
+    // Add pagination controls if needed
+    if (totalPages > 1) {
+      const paginationHtml = `
+        <div style="grid-column: 1 / -1; display: flex; justify-content: center; align-items: center; gap: 16px; padding: 24px 0 8px;">
+          <button onclick="window.__searchPrevPage()" ${page <= 1 ? 'disabled' : ''}
+            style="padding: 8px 18px; border-radius: 6px; border: 1px solid ${page <= 1 ? '#2a3441' : 'rgba(79, 156, 255, 0.4)'}; background: ${page <= 1 ? 'transparent' : 'rgba(79, 156, 255, 0.1)'}; color: ${page <= 1 ? '#555' : '#4f9cff'}; cursor: ${page <= 1 ? 'not-allowed' : 'pointer'}; font-weight: 600; font-size: 13px; transition: all 0.15s ease;">
+            ◀ Previous
+          </button>
+          <span style="color: #8a93a3; font-size: 13px; font-weight: 500;">Page ${page} of ${totalPages}</span>
+          <button onclick="window.__searchNextPage()" ${page >= totalPages ? 'disabled' : ''}
+            style="padding: 8px 18px; border-radius: 6px; border: 1px solid ${page >= totalPages ? '#2a3441' : 'rgba(79, 156, 255, 0.4)'}; background: ${page >= totalPages ? 'transparent' : 'rgba(79, 156, 255, 0.1)'}; color: ${page >= totalPages ? '#555' : '#4f9cff'}; cursor: ${page >= totalPages ? 'not-allowed' : 'pointer'}; font-weight: 600; font-size: 13px; transition: all 0.15s ease;">
+            Next ▶
+          </button>
+        </div>
+      `;
+      casesGrid.innerHTML += paginationHtml;
+    }
   }
 
   function escapeHtml(str) {
@@ -381,4 +433,18 @@ document.addEventListener("DOMContentLoaded", () => {
     div.textContent = str;
     return div.innerHTML;
   }
+
+  // Global pagination handlers (called from onclick in pagination buttons)
+  window.__searchPrevPage = function() {
+    if (currentPage > 1 && lastFilters) {
+      const year = document.querySelector(".searchYear")?.value || "all";
+      fetchPage(currentPage - 1, lastFilters, year, lastHighlightTerm);
+    }
+  };
+  window.__searchNextPage = function() {
+    if (lastFilters) {
+      const year = document.querySelector(".searchYear")?.value || "all";
+      fetchPage(currentPage + 1, lastFilters, year, lastHighlightTerm);
+    }
+  };
 });

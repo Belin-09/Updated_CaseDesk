@@ -54,8 +54,19 @@ async function loadCase() {
 
   const c = await response.json();
 
-  document.getElementById("caseTitle").textContent = c.case_name || c.file_name || 'Untitled Case';
-  document.getElementById("caseSubtitle").textContent = "";
+  let titleHtml = escapeHtml(c.case_name || c.file_name || 'Untitled Case');
+  if (c.has_confirmed_pio) {
+    titleHtml += ` <span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.3); font-size: 14px; vertical-align: middle; margin-left: 10px;">🚨 CONFIRMED PIO</span>`;
+    // Optionally display the matched numbers in subtitle
+    if (c.confirmed_pio_matches) {
+        document.getElementById("caseSubtitle").textContent = `Matches: ${c.confirmed_pio_matches}`;
+    } else {
+        document.getElementById("caseSubtitle").textContent = "";
+    }
+  } else {
+      document.getElementById("caseSubtitle").textContent = "";
+  }
+  document.getElementById("caseTitle").innerHTML = titleHtml;
 
   fieldIds.forEach(f => {
     const el = document.getElementById(`f_${f}`);
@@ -179,14 +190,12 @@ function renderTabs(files, caseRawText, mainFileName, caseId, sourceFolder) {
     const isImage = ["png", "jpg", "jpeg", "gif"].includes(ext);
     const textToSearch = f.raw_text || caseRawText;
     
-    if (searchTerm && textToSearch && !isImage) {
-      const lowerText = textToSearch.toLowerCase();
-      const lowerTerm = searchTerm.toLowerCase();
-      let pos = lowerText.indexOf(lowerTerm);
-      while (pos !== -1) {
-        fileHits++;
-        pos = lowerText.indexOf(lowerTerm, pos + lowerTerm.length);
-      }
+    if (searchTerm && textToSearch) {
+      const cleanTerm = searchTerm.replace(/^[\+\-\~\<\>\"\'\s]+/, '').trim();
+      const escapedTerm = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedTerm, 'gi');
+      const matches = textToSearch.match(regex);
+      fileHits = matches ? matches.length : 0;
     }
     f.hit_count = fileHits;
 
@@ -470,20 +479,20 @@ function highlightSearchTerm(text, term) {
   if (text === null || text === undefined || text === "") return "—";
   if (!term) return escapeHtml(text);
   
-  const lowerText = text.toLowerCase();
-  const lowerTerm = term.toLowerCase();
+  const cleanTerm = term.replace(/^[\+\-\~\<\>\"\'\s]+/, '').trim();
+  const escapedTerm = cleanTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const regex = new RegExp('(' + escapedTerm + ')', 'gi');
   
   let result = "";
   let lastIndex = 0;
   let hitIndex = 0;
-  let index = lowerText.indexOf(lowerTerm, lastIndex);
+  let match;
   
-  while (index !== -1) {
-    result += escapeHtml(text.substring(lastIndex, index));
-    result += `<mark class="search-highlight" data-hit-index="${hitIndex}">${escapeHtml(text.substring(index, index + term.length))}</mark>`;
+  while ((match = regex.exec(text)) !== null) {
+    result += escapeHtml(text.substring(lastIndex, match.index));
+    result += `<mark class="search-highlight" data-hit-index="${hitIndex}">${escapeHtml(match[0])}</mark>`;
     hitIndex++;
-    lastIndex = index + term.length;
-    index = lowerText.indexOf(lowerTerm, lastIndex);
+    lastIndex = regex.lastIndex;
   }
   
   result += escapeHtml(text.substring(lastIndex));
@@ -497,8 +506,8 @@ let totalHits = 0;
 
 function renderHitNavigator() {
   // Remove any existing navigator
-  const existing = document.getElementById("hitNavigator");
-  if (existing) existing.remove();
+  const existingNavs = document.querySelectorAll(".hit-navigator");
+  existingNavs.forEach(nav => nav.remove());
 
   const rawTextBox = document.getElementById("rawTextBox");
   if (!rawTextBox) return;
@@ -509,21 +518,24 @@ function renderHitNavigator() {
 
   currentHitIndex = 0;
 
-  const nav = document.createElement("div");
-  nav.className = "hit-navigator";
-  nav.id = "hitNavigator";
-  nav.innerHTML = `
-    <span class="hit-counter">🔍 <span class="hit-current" id="hitCurrentNum">1</span> of ${totalHits} hit${totalHits !== 1 ? "s" : ""} in text</span>
-    <button id="hitPrevBtn" onclick="navigateHit(-1)">▲ Prev</button>
-    <button id="hitNextBtn" onclick="navigateHit(1)">▼ Next</button>
-  `;
+  const createNav = () => {
+    const nav = document.createElement("div");
+    nav.className = "hit-navigator";
+    nav.innerHTML = `
+      <span class="hit-counter">🔍 <span class="hit-current hit-current-num">1</span> of ${totalHits} hit${totalHits !== 1 ? "s" : ""} in text</span>
+      <button onclick="navigateHit(-1)">▲ Prev</button>
+      <button onclick="navigateHit(1)">▼ Next</button>
+    `;
+    return nav;
+  };
 
   const previewContainer = document.getElementById("documentPreviewContainer");
   if (previewContainer) {
-    previewContainer.parentNode.insertBefore(nav, previewContainer);
-  } else {
-    rawTextBox.parentNode.insertBefore(nav, rawTextBox);
+    previewContainer.parentNode.insertBefore(createNav(), previewContainer);
   }
+  
+  // Create a second navigator above the raw text box so the user can use it when scrolling down
+  rawTextBox.parentNode.insertBefore(createNav(), rawTextBox);
 
   // Jump to first hit
   jumpToHit(0);
@@ -562,9 +574,9 @@ function jumpToHit(index) {
     iframe.contentWindow.postMessage({ type: 'NAVIGATE_HIT', index: currentHitIndex }, '*');
   }
 
-  // Update counter
-  const counter = document.getElementById("hitCurrentNum");
-  if (counter) counter.textContent = currentHitIndex + 1;
+  // Update counters
+  const counters = document.querySelectorAll(".hit-current-num");
+  counters.forEach(c => c.textContent = currentHitIndex + 1);
 }
 
 window.navigateHit = function(direction) {

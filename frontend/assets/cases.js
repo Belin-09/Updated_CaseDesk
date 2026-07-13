@@ -9,6 +9,7 @@ const pagination = document.getElementById("pagination");
 const searchInput = document.getElementById("searchInput");
 const caseSearchInput = document.getElementById("caseSearchInput");
 const statusFilter = document.getElementById("statusFilter");
+const pioFilter = document.getElementById("pioFilter");
 const sortBy = document.getElementById("sortBy");
 const sortOrder = document.getElementById("sortOrder");
 
@@ -111,6 +112,7 @@ async function fetchCasesForYear() {
     if (searchInput.value.trim()) params.append("search", searchInput.value.trim());
     if (caseSearchInput.value.trim()) params.append("case_search", caseSearchInput.value.trim());
     if (statusFilter && statusFilter.value) params.append("status", statusFilter.value);
+    if (pioFilter && pioFilter.value) params.append("has_confirmed_pio", pioFilter.value);
 
     const response = await apiFetch(`/cases/?${params.toString()}`);
     if (!response || !response.ok) {
@@ -123,7 +125,7 @@ async function fetchCasesForYear() {
     const isSearchActive = !!searchInput.value.trim();
     if (isSearchActive) {
       const hits = data.total_hits || 0;
-      totalCount.innerHTML = `<span class="search-summary-highlight">${hits} hit${hits !== 1 ? "s" : ""}</span> across <span class="search-summary-highlight">${data.total} case${data.total !== 1 ? "s" : ""}</span> found in ${selectedYear}`;
+      totalCount.innerHTML = `<span class="search-summary-highlight">${data.total} case${data.total !== 1 ? "s" : ""}</span> found in ${selectedYear} <span style="color:#8a93a3; font-size: 13px; font-weight: 500;">(${hits} hit${hits !== 1 ? "s" : ""} shown on this page)</span>`;
     } else {
       totalCount.innerHTML = `${data.total} case${data.total !== 1 ? "s" : ""} found in ${selectedYear}`;
     }
@@ -156,6 +158,10 @@ function renderCases(cases) {
 
     const hitsBadge = (isSearchActive && c.hit_count !== undefined)
       ? `<span class="badge badge-hits">${c.hit_count} hit${c.hit_count !== 1 ? 's' : ''}</span>`
+      : '';
+
+    const pioBadge = c.has_confirmed_pio
+      ? `<span class="badge" style="background: rgba(168, 85, 247, 0.15); color: #e9d5ff; border: 1px solid rgba(168, 85, 247, 0.3);">🚨 CONFIRMED PIO</span>`
       : '';
 
     const detailUrl = `case-detail.html?id=${c.id}&v=1.6${isSearchActive ? '&search=' + encodeURIComponent(searchTerm) : ''}${selectedYear ? '&year=' + encodeURIComponent(selectedYear) : ''}`;
@@ -193,6 +199,7 @@ function renderCases(cases) {
           </div>
           <div class="case-card-badges">
             ${statusBadge}
+            ${pioBadge}
             ${hitsBadge}
           </div>
         </div>
@@ -302,7 +309,7 @@ caseSearchInput.addEventListener("input", () => {
   }, 400);
 });
 
-[statusFilter, sortBy, sortOrder].forEach(el => {
+[statusFilter, sortBy, sortOrder, pioFilter].forEach(el => {
   if (el) {
     el.addEventListener("change", () => {
       currentPage = 1;
@@ -382,6 +389,7 @@ const scanModal = document.getElementById("scanModal");
 const scanFolderBtn = document.getElementById("scanFolderBtn");
 const cancelScanBtn = document.getElementById("cancelScanBtn");
 const confirmScanBtn = document.getElementById("confirmScanBtn");
+const stopScanBtn = document.getElementById("stopScanBtn");
 const scanPathInput = document.getElementById("scanPathInput");
 const browseFolderBtn = document.getElementById("browseFolderBtn");
 const scanResults = document.getElementById("scanResults");
@@ -393,6 +401,8 @@ scanFolderBtn.addEventListener("click", () => {
   scanResults.style.display = "none";
   scanStatus.classList.remove("show", "success", "error");
   scanPathInput.value = "";
+  stopScanBtn.style.display = "none";
+  confirmScanBtn.style.display = "inline-block";
 });
 
 browseFolderBtn.addEventListener("click", async (e) => {
@@ -435,7 +445,10 @@ confirmScanBtn.addEventListener("click", async () => {
   }
 
   confirmScanBtn.disabled = true;
-  confirmScanBtn.textContent = "Starting...";
+  confirmScanBtn.style.display = "none";
+  stopScanBtn.style.display = "inline-block";
+  stopScanBtn.disabled = false;
+  stopScanBtn.textContent = "Stop Scan";
   scanStatus.classList.remove("show", "success", "error");
   scanResults.style.display = "none";
 
@@ -455,7 +468,19 @@ confirmScanBtn.addEventListener("click", async () => {
   } catch (err) {
     showScanStatus(err.message, "error");
     confirmScanBtn.disabled = false;
-    confirmScanBtn.textContent = "Scan";
+    confirmScanBtn.style.display = "inline-block";
+    stopScanBtn.style.display = "none";
+  }
+});
+
+stopScanBtn.addEventListener("click", async () => {
+  stopScanBtn.disabled = true;
+  stopScanBtn.textContent = "Stopping...";
+  try {
+    await apiFetch("/upload/cancel-scan", { method: "POST" });
+    showScanStatus("Cancellation requested, wrapping up current folder...", "success");
+  } catch (err) {
+    console.error("Failed to cancel scan:", err);
   }
 });
 
@@ -503,17 +528,23 @@ async function pollScanStatus() {
       }
     }
 
-    if (state.status === "completed" || state.status === "failed") {
+    if (state.status === "completed" || state.status === "failed" || state.status === "cancelled") {
       clearInterval(pollInterval);
 
       confirmScanBtn.disabled = false;
       confirmScanBtn.textContent = "Scan";
+      confirmScanBtn.style.display = "inline-block";
+      stopScanBtn.style.display = "none";
 
       if (activeScanBanner) {
         if (bannerScanProgress) {
-          bannerScanProgress.textContent = state.status === "completed"
-            ? `Scan completed! ${state.processed} processed, ${state.reprocessed} reprocessed, ${state.skipped} skipped.`
-            : `Scan failed: ${state.error}`;
+          if (state.status === "completed") {
+            bannerScanProgress.textContent = `Scan completed! ${state.processed} processed, ${state.reprocessed} reprocessed, ${state.skipped} skipped.`;
+          } else if (state.status === "cancelled") {
+            bannerScanProgress.textContent = `Scan stopped! ${state.processed} processed, ${state.reprocessed} reprocessed, ${state.skipped} skipped.`;
+          } else {
+            bannerScanProgress.textContent = `Scan failed: ${state.error}`;
+          }
         }
         setTimeout(() => {
           activeScanBanner.style.display = "none";
@@ -524,6 +555,12 @@ async function pollScanStatus() {
         showScanStatus(
           `Scan complete. ${state.processed} processed, ${state.reprocessed} reprocessed, ${state.skipped} skipped, ${state.failed} failed.`,
           "success"
+        );
+        loadCases();
+      } else if (state.status === "cancelled") {
+        showScanStatus(
+          `Scan stopped. ${state.processed} processed, ${state.reprocessed} reprocessed, ${state.skipped} skipped, ${state.failed} failed.`,
+          "error"
         );
         loadCases();
       } else {
@@ -769,4 +806,89 @@ createUserBtn.addEventListener("click", async () => {
 function showStatusMsg(element, message, type) {
   element.textContent = message;
   element.className = `upload-status show ${type}`;
+}
+
+// ── PIO Intelligence Modal Elements ──────────────────────────────────────
+const pioIntelBtn = document.getElementById("pioIntelBtn");
+const pioIntelModal = document.getElementById("pioIntelModal");
+const closePioModalBtn = document.getElementById("closePioModalBtn");
+const uploadPioBtn = document.getElementById("uploadPioBtn");
+const runPioCrossRefBtn = document.getElementById("runPioCrossRefBtn");
+const pioFileInput = document.getElementById("pioFileInput");
+const pioStatus = document.getElementById("pioStatus");
+
+if (pioIntelBtn) {
+  pioIntelBtn.addEventListener("click", () => {
+    pioIntelModal.classList.add("show");
+    pioStatus.classList.remove("show", "success", "error");
+    pioFileInput.value = "";
+  });
+}
+
+if (closePioModalBtn) {
+  closePioModalBtn.addEventListener("click", () => {
+    pioIntelModal.classList.remove("show");
+  });
+}
+
+if (uploadPioBtn) {
+  uploadPioBtn.addEventListener("click", async () => {
+    if (!pioFileInput.files.length) {
+      showStatusMsg(pioStatus, "Please select a master list file", "error");
+      return;
+    }
+
+    const file = pioFileInput.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+
+    uploadPioBtn.disabled = true;
+    uploadPioBtn.textContent = "Uploading...";
+
+    try {
+      const response = await apiFetch("/pio/upload-master-list", {
+        method: "POST",
+        body: formData
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Upload failed");
+
+      showStatusMsg(pioStatus, `Success: ${data.added} new numbers added. Total: ${data.total_confirmed}`, "success");
+    } catch (err) {
+      showStatusMsg(pioStatus, err.message, "error");
+    } finally {
+      uploadPioBtn.disabled = false;
+      uploadPioBtn.textContent = "Upload Master List";
+    }
+  });
+}
+
+if (runPioCrossRefBtn) {
+  runPioCrossRefBtn.addEventListener("click", async () => {
+    runPioCrossRefBtn.disabled = true;
+    runPioCrossRefBtn.textContent = "Running Cross-Reference...";
+
+    try {
+      const response = await apiFetch("/pio/cross-reference", {
+        method: "POST"
+      });
+
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.detail || "Cross-reference failed");
+
+      showStatusMsg(pioStatus, `Check complete! Flagged ${data.cases_flagged} cases with confirmed PIO numbers.`, "success");
+      
+      // Reload cases in background to show badges
+      setTimeout(() => {
+        loadCases();
+      }, 1500);
+      
+    } catch (err) {
+      showStatusMsg(pioStatus, err.message, "error");
+    } finally {
+      runPioCrossRefBtn.disabled = false;
+      runPioCrossRefBtn.textContent = "Run Cross-Reference Check";
+    }
+  });
 }

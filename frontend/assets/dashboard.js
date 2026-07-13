@@ -40,7 +40,7 @@ async function loadCases() {
     const isSearchActive = !!searchInput.value.trim();
     if (isSearchActive) {
       const hits = data.total_hits || 0;
-      totalCount.innerHTML = `<span class="search-summary-highlight">${hits} hit${hits !== 1 ? "s" : ""}</span> across <span class="search-summary-highlight">${data.total} case${data.total !== 1 ? "s" : ""}</span> found`;
+      totalCount.innerHTML = `<span class="search-summary-highlight">${data.total} case${data.total !== 1 ? "s" : ""}</span> found <span style="color:#8a93a3; font-size: 13px; font-weight: 500;">(${hits} hit${hits !== 1 ? "s" : ""} shown on this page)</span>`;
     } else {
       totalCount.innerHTML = `${data.total} case${data.total !== 1 ? "s" : ""} found`;
     }
@@ -69,7 +69,7 @@ function renderCases(cases) {
   caseGrid.innerHTML = cases.map(c => {
     const statusBadge = c.error_flag
       ? `<span class="badge badge-flagged">Flagged</span>`
-      : `<span class="badge badge-${c.status || 'open'}">${c.status || 'open'}</span>`;
+      : ``;
 
     const hitsBadge = (isSearchActive && c.hit_count !== undefined)
       ? `<span class="badge badge-hits">${c.hit_count} hit${c.hit_count !== 1 ? 's' : ''}</span>`
@@ -114,20 +114,23 @@ function renderCases(cases) {
           </div>
         </div>
         <div class="case-card-field">
-          <span class="case-card-field-label">Officer</span>
-          <span class="case-card-field-value">${escapeHtml(c.officer || '—')}</span>
+          <span class="case-card-field-label">Analyst</span>
+          <span class="case-card-field-value">${escapeHtml(c.analyst || '—')}</span>
         </div>
         <div class="case-card-field">
-          <span class="case-card-field-label">Date</span>
-          <span class="case-card-field-value">${escapeHtml(c.date || '—')}</span>
+          <span class="case-card-field-label">IO</span>
+          <span class="case-card-field-value">${escapeHtml(c.investigating_officer || '—')}</span>
         </div>
         <div class="case-card-field">
-          <span class="case-card-field-label">Location</span>
-          <span class="case-card-field-value">${escapeHtml(c.location || '—')}</span>
+          <span class="case-card-field-label">Pertains to</span>
+          <span class="case-card-field-value">
+            ${c.pertains_name ? escapeHtml(c.pertains_name) : '—'}
+            ${c.pertains_service_no ? `(<small>${escapeHtml(c.pertains_service_no)}</small>)` : ''}
+          </span>
         </div>
         <div class="case-card-field">
-          <span class="case-card-field-label">Incident</span>
-          <span class="case-card-field-value">${escapeHtml(c.incident_type || '—')}</span>
+          <span class="case-card-field-label">Unit</span>
+          <span class="case-card-field-value">${escapeHtml(c.pertains_unit || '—')}</span>
         </div>
         ${matchedFilesHtml}
         <div class="case-card-footer">
