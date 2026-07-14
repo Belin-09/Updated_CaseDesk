@@ -118,6 +118,10 @@ def collect_files(case_path: str) -> list[dict]:
 
     for root, dirs, filenames in os.walk(case_path):
         for filename in filenames:
+            # Skip hidden and temporary lock files
+            if filename.startswith('.') or filename.startswith('~') or filename.startswith('$'):
+                continue
+                
             ext = os.path.splitext(filename)[1].lower()
             if ext in {".pdf", ".docx"}:
                 files.append({
@@ -191,8 +195,8 @@ def process_case_folder(case_name: str, case_path: str, is_file: bool = False) -
         if file_confidence is not None:
             ocr_confidences.append(file_confidence)
             
-        if file_error:
-            extraction_exception = file_error
+        # We intentionally DO NOT set extraction_exception = file_error here, 
+        # so a single corrupted file doesn't flag the entire case.
 
         file_records.append({
             "file_name": fname,

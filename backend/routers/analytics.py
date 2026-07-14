@@ -11,25 +11,6 @@ router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 from sqlalchemy import func
 
-def extract_year_from_case(c: Case) -> str:
-    """Extract 4-digit year from source_folder, case_name, date, or created_at."""
-    if c.source_folder:
-        m = re.search(r"[\/\\](20\d\d|19\d\d)[\/\\]", c.source_folder)
-        if m:
-            return m.group(1)
-    if c.case_name:
-        m = re.search(r"\b(20\d\d|19\d\d)\b", c.case_name)
-        if m:
-            return m.group(1)
-    for date_field in [c.date_deposition, c.date_issuance, c.date_intimation, c.date_return]:
-        if date_field:
-            m = re.search(r"\b(20\d\d|19\d\d)\b", date_field)
-            if m:
-                return m.group(1)
-    if c.created_at:
-        return str(c.created_at.year)
-    return "Unknown"
-
 
 @router.get("/summary")
 def get_analytics_summary(

@@ -41,13 +41,13 @@ def clean_value(value: str) -> str:
 # ── Custom Field Extractors ──────────────────────────────────────────────
 
 COMMAND_KEYWORDS = [
-    ("North Eastern", [r"north\s*eastern\s*(?:command|comd)?", r"\bne\s+comd\b"]),
-    ("South Western", [r"south\s*western\s*(?:command|comd)?", r"\bsw\s+comd\b"]),
-    ("Central", [r"central\s+(?:command|comd)", r"\bcentral\b"]),
-    ("Northern", [r"northern\s+(?:command|comd)", r"\bnorthern\b"]),
-    ("Southern", [r"southern\s+(?:command|comd)", r"\bsouthern\b"]),
-    ("Eastern", [r"eastern\s+(?:command|comd)", r"(?<!north\s)\beastern\b"]),
-    ("Western", [r"western\s+(?:command|comd)", r"(?<!south\s)\bwestern\b"]),
+    ("North Eastern", [r"north\s*(?:eastern|east)\s*(?:command|comd)?", r"\bne\s+comd\b"]),
+    ("South Western", [r"south\s*(?:western|west)\s*(?:command|comd)?", r"\bsw\s+comd\b"]),
+    ("Central", [r"(?:central|centre)\s+(?:command|comd)", r"\b(?:central|centre)\b"]),
+    ("Northern", [r"(?:northern|north)\s+(?:command|comd)", r"\b(?:northern|north)\b"]),
+    ("Southern", [r"(?:southern|south)\s+(?:command|comd)", r"\b(?:southern|south)\b"]),
+    ("Eastern", [r"(?:eastern|east)\s+(?:command|comd)", r"(?<!north\s)\b(?:eastern|east)\b"]),
+    ("Western", [r"(?:western|west)\s+(?:command|comd)", r"(?<!south\s)\b(?:western|west)\b"]),
 ]
 
 def extract_command(hash_text: str) -> Optional[str]:
@@ -153,8 +153,8 @@ def extract_ro_pattern(text: str) -> Optional[dict]:
         return None
         
     patterns = [
-        r"\br/o\s+([A-Z0-9\-\s]{4,15}?)\s+(.+?)\s+of\s+(.+?)(?:\s+of\s+|\n|\(|$)",
-        r"PERMISSION\s+FOR\s+CFI:\s+([A-Z0-9\-\s]{4,15}?)\s+(.+?)\s+OF\s+(.+?)(?:\s+OF\s+|\n|\(|$)"
+        r"\br/o\s+([A-Z0-9\-\s\n]{4,25}?)\s+([\s\S]{1,60}?)\s+of\s+([\s\S]{1,100}?)(?:\s+of\s+|\n|\(|case\b|$)",
+        r"PERMISSION\s+FOR\s+CFI:\s+([A-Z0-9\-\s\n]{4,25}?)\s+([\s\S]{1,60}?)\s+OF\s+([\s\S]{1,100}?)(?:\s+OF\s+|\n|\(|case\b|$)"
     ]
     
     for pattern in patterns:
@@ -197,14 +197,14 @@ def extract_analyst_name(files_dict: dict) -> Optional[str]:
             for i, line in enumerate(lines):
                 lower_line = line.lower()
                 if "digital forensic analyst" in lower_line:
-                    for j in range(i - 1, max(-1, i - 5), -1):
+                    for j in range(i, max(-1, i - 5), -1):
                         m = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[j])
                         if m:
                             val = m.group(1).strip()
                             if val:
                                 return val
                 elif "pu for perusal, tech review and approval" in lower_line or "tech review and approval pl" in lower_line:
-                    for j in range(i + 1, min(len(lines), i + 6)):
+                    for j in range(i, min(len(lines), i + 6)):
                         m = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[j])
                         if m:
                             val = m.group(1).strip()
@@ -223,21 +223,21 @@ def extract_investigating_officer(files_dict: dict) -> Optional[str]:
                     rank = None
                     name = None
                     rank_idx = -1
-                    ranks_regex = r"\b(Lt\s+Col|Col|Major|Capt|Lt|Sub|Hav|Nk|L/Nk|Sep|Col|Brig|Maj\s+Gen|Gen|Havildar|Naik|Sepoy|Lt-Col|Lt\.?\s*Col\.?)\b"
-                    for j in range(i - 1, max(-1, i - 6), -1):
+                    ranks_regex = r"\b(Lt\s+Col|Col|Major|Maj|Capt|Lt|Brig|Maj\s+Gen|Gen|Lt-Col|Lt\.?\s*Col\.?)\b"
+                    for j in range(i, max(-1, i - 6), -1):
                         m_rank = re.search(ranks_regex, lines[j], re.IGNORECASE)
                         if m_rank:
                             rank = m_rank.group(1).strip()
                             rank_idx = j
                             break
                     if rank_idx != -1:
-                        for k in range(rank_idx - 1, max(-1, rank_idx - 5), -1):
+                        for k in range(rank_idx, max(-1, rank_idx - 5), -1):
                             m_name = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[k])
                             if m_name:
                                 name = m_name.group(1).strip()
                                 break
                     else:
-                        for k in range(i - 1, max(-1, i - 6), -1):
+                        for k in range(i, max(-1, i - 6), -1):
                             m_name = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[k])
                             if m_name:
                                 name = m_name.group(1).strip()
@@ -250,6 +250,27 @@ def extract_investigating_officer(files_dict: dict) -> Optional[str]:
                         return name
                     elif rank:
                         return rank
+            
+            # Fallback: if no title was found, scan the last 20 lines upwards for a rank + bracketed name
+            ranks_regex = r"\b(Lt\s+Col|Col|Major|Maj|Capt|Lt|Brig|Maj\s+Gen|Gen|Lt-Col|Lt\.?\s*Col\.?)\b"
+            for i in range(len(lines) - 1, max(-1, len(lines) - 25), -1):
+                m_rank = re.search(ranks_regex, lines[i], re.IGNORECASE)
+                if m_rank:
+                    rank = m_rank.group(1).strip()
+                    name = None
+                    # Check for bracketed name on the exact same line, or up to 4 lines above it
+                    for k in range(i, max(-1, i - 5), -1):
+                        m_name = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[k])
+                        if m_name:
+                            name = m_name.group(1).strip()
+                            break
+                    
+                    # Only return if BOTH rank and bracketed name are found to avoid false positives
+                    if rank and name:
+                        if name.lower().startswith(rank.lower()):
+                            return name
+                        return f"{rank} {name}"
+                        
     return None
 
 def extract_deposition_date(hash_text: str) -> Optional[str]:
@@ -308,7 +329,7 @@ def parse_fields(raw_text: str) -> dict:
     # 2. Hash Letter (for command and pertains/deposition date)
     hash_text = ""
     for fname, txt in files_dict.items():
-        if "hash" in fname:
+        if "hash" in fname and "letter" in fname:
             hash_text = txt
             break
 
@@ -346,7 +367,7 @@ def parse_fields(raw_text: str) -> dict:
     # Find return document
     return_doc_text = ""
     for fname, txt in files_dict.items():
-        if "return" in fname or "artefact" in fname or "artifact" in fname:
+        if "return" in fname and ("artefact" in fname or "artifact" in fname):
             return_doc_text = txt
             break
 

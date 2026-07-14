@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, defer
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_db
 from models import Case, CaseFile, AuditLog
 from auth import get_current_user
@@ -67,6 +67,7 @@ def list_flagged_cases(
                 "incident_type": c.incident_type,
                 "uploaded_by": c.uploaded_by,
                 "created_at": c.created_at,
+                "file_count": c.file_count,
             }
             for c in cases
         ]
@@ -146,8 +147,8 @@ def resolve_case(
     case.error_reason = None
     case.review_note = payload.review_note
     case.reviewed_by = current_user.username
-    case.reviewed_at = datetime.utcnow()
-    case.updated_at = datetime.utcnow()
+    case.reviewed_at = datetime.now(timezone.utc)
+    case.updated_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(case)
@@ -183,9 +184,9 @@ def escalate_case(
     # Stays flagged, but now has an escalation note + who escalated it
     case.review_note = payload.review_note
     case.reviewed_by = current_user.username
-    case.reviewed_at = datetime.utcnow()
+    case.reviewed_at = datetime.now(timezone.utc)
     case.error_reason = "ESCALATED"
-    case.updated_at = datetime.utcnow()
+    case.updated_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(case)

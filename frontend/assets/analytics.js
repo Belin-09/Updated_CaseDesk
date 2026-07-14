@@ -101,6 +101,25 @@ const customBarDecorations = {
           ctx.textAlign = 'center';
           ctx.textBaseline = 'bottom';
           ctx.fillText(data, xPos, yPos);
+
+          if (!isStacked) {
+            const cmdMap = {
+              "Central": "C",
+              "Northern": "N",
+              "Southern": "S",
+              "Eastern": "E",
+              "Western": "W",
+              "North Eastern": "NE",
+              "South Western": "SW",
+              "Unassigned": "U"
+            };
+            if (cmdMap[dataset.label]) {
+              ctx.font = '600 10px Inter, sans-serif';
+              ctx.fillStyle = '#8a93a3';
+              ctx.textBaseline = 'top';
+              ctx.fillText(cmdMap[dataset.label], bar.x, bar.base + 6);
+            }
+          }
         }
       });
     });
@@ -176,7 +195,7 @@ function renderCasesPerYearChart(data) {
         y: {
           beginAtZero: true,
           grid: { color: "rgba(255, 255, 255, 0.05)" },
-          ticks: { color: "#8a93a3", stepSize: 1 }
+          ticks: { color: "#8a93a3", stepSize: 10 }
         },
         x: {
           grid: { display: false },
@@ -228,7 +247,7 @@ function renderSuspectedPioChart(data) {
         y: {
           beginAtZero: true,
           grid: { color: "rgba(255, 255, 255, 0.05)" },
-          ticks: { color: "#8a93a3", stepSize: 1 }
+          ticks: { color: "#8a93a3", stepSize: 5 }
         },
         x: {
           grid: { display: false },
@@ -387,8 +406,8 @@ function renderCasesByCommandChart(data) {
         legend: { display: false }
       },
       scales: {
-        x: { ticks: { color: "#8a93a3" }, grid: { display: false } },
-        y: { ticks: { color: "#8a93a3", stepSize: 1 }, grid: { color: "rgba(255,255,255,0.06)" } }
+        x: { ticks: { color: "#8a93a3", padding: 20 }, grid: { display: false } },
+        y: { ticks: { color: "#8a93a3", stepSize: 5 }, grid: { color: "rgba(255,255,255,0.06)" } }
       },
       onClick: (event, activeElements) => {
         if (activeElements && activeElements.length > 0) {
@@ -474,7 +493,7 @@ function renderCasesByTypeChart(data) {
       },
       scales: {
         x: { ticks: { color: "#8a93a3" }, grid: { display: false } },
-        y: { ticks: { color: "#8a93a3", stepSize: 1 }, grid: { color: "rgba(255,255,255,0.06)" } }
+        y: { ticks: { color: "#8a93a3", stepSize: 5 }, grid: { color: "rgba(255,255,255,0.06)" } }
       },
       onClick: (event, activeElements) => {
         if (activeElements && activeElements.length > 0) {

@@ -6,10 +6,11 @@ from database import get_db
 from models import Case, CaseFile, AuditLog
 from auth import get_current_user
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 from collections import defaultdict
 from sqlalchemy import text
 import re
+import json
 from sqlalchemy import bindparam
 
 
@@ -259,53 +260,11 @@ def list_cases(
     }
 
 
-@router.get("/search/options")
-def get_search_options(
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    incident_types = [r[0] for r in db.query(Case.incident_type).distinct().filter(Case.incident_type != None).all() if r[0].strip()]
-    commands = [r[0] for r in db.query(Case.command).distinct().filter(Case.command != None).all() if r[0].strip()]
-    analysts = [r[0] for r in db.query(Case.analyst).distinct().filter(Case.analyst != None).all() if r[0].strip()]
-    investigating_officers = [r[0] for r in db.query(Case.investigating_officer).distinct().filter(Case.investigating_officer != None).all() if r[0].strip()]
-    
-    # Extract unique dates from the 4 date fields
-    d1 = [r[0] for r in db.query(Case.date_deposition).distinct().filter(Case.date_deposition != None).all() if r[0].strip() and r[0].strip().lower() != "unknown"]
-    d2 = [r[0] for r in db.query(Case.date_issuance).distinct().filter(Case.date_issuance != None).all() if r[0].strip() and r[0].strip().lower() != "unknown"]
-    d3 = [r[0] for r in db.query(Case.date_intimation).distinct().filter(Case.date_intimation != None).all() if r[0].strip() and r[0].strip().lower() != "unknown"]
-    d4 = [r[0] for r in db.query(Case.date_return).distinct().filter(Case.date_return != None).all() if r[0].strip() and r[0].strip().lower() != "unknown"]
-    all_dates = sorted(list(set(d1 + d2 + d3 + d4)))
-    
-    # Use the same logic as the cases page to extract years
-    years_data = get_case_years(db, None)
-    years = sorted([y["year"] for y in years_data if y["year"] != "Unknown"], reverse=True)
-    
-    return {
-        "incident_type": sorted(incident_types),
-        "command": sorted(commands),
-        "analyst": sorted(analysts),
-        "investigating_officer": sorted(investigating_officers),
-        "dates": all_dates,
-        "years": years
-    }
-
-import json
-
-@router.get("/search/advanced")
-def advanced_search(
-    filters: Optional[str] = Query(None, description="JSON array of filters"),
-    year: Optional[str] = Query(None, description="Year filter"),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(20, ge=1, le=100),
-    db: Session = Depends(get_db),
-    current_user=Depends(get_current_user)
-):
-    query = db.query(Case)
-
+def apply_search_filters(query, filters_json: Optional[str], year: Optional[str]):
     global_term = None
-    if filters:
+    if filters_json:
         try:
-            filter_list = json.loads(filters)
+            filter_list = json.loads(filters_json)
             for f in filter_list:
                 category = f.get("category")
                 term = f.get("term")
@@ -321,7 +280,8 @@ def advanced_search(
                 pattern = f"%{term}%"
 
                 if category in ("random", "case_name"):
-                    global_term = term
+                    if not global_term:
+                        global_term = term
 
                 if category == "case_name":
                     query = query.filter(Case.case_name.ilike(pattern))
@@ -364,14 +324,72 @@ def advanced_search(
                         ft_term = f'+{safe_term}*'
                         
                     if safe_term:
+                        param_name = f"ft_term_{id(f)}"
                         query = query.filter(
-                            text("MATCH(raw_text, case_name, file_name, source_folder, incident_type, status, command, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, suspected_pio_numbers, error_reason, review_note, uploaded_by) AGAINST(:ft_term IN BOOLEAN MODE)")
-                        ).params(ft_term=ft_term)
+                            text(f"MATCH(raw_text, case_name, file_name, source_folder, incident_type, status, command, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, suspected_pio_numbers, error_reason, review_note, uploaded_by) AGAINST(:{param_name} IN BOOLEAN MODE)")
+                        ).params(**{param_name: ft_term})
         except Exception:
             pass
 
     if year and year != "all":
         query = query.filter(Case.year == year)
+        
+    return query, global_term
+
+
+@router.get("/search/options")
+def get_search_options(
+    year: Optional[str] = Query(None, description="Optional year filter"),
+    filters: Optional[str] = Query(None, description="Optional active filters json"),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    def get_distinct(column):
+        q = db.query(column).distinct().filter(column != None)
+        q, _ = apply_search_filters(q, filters, year)
+        return [r[0] for r in q.all() if r[0].strip()]
+
+    incident_types = get_distinct(Case.incident_type)
+    commands = get_distinct(Case.command)
+    analysts = get_distinct(Case.analyst)
+    investigating_officers = get_distinct(Case.investigating_officer)
+    
+    # Extract unique dates from the 4 date fields
+    def get_distinct_dates(column):
+        q = db.query(column).distinct().filter(column != None)
+        q, _ = apply_search_filters(q, filters, year)
+        return [r[0] for r in q.all() if r[0].strip() and r[0].strip().lower() != "unknown"]
+
+    d1 = get_distinct_dates(Case.date_deposition)
+    d2 = get_distinct_dates(Case.date_issuance)
+    d3 = get_distinct_dates(Case.date_intimation)
+    d4 = get_distinct_dates(Case.date_return)
+    all_dates = sorted(list(set(d1 + d2 + d3 + d4)))
+    
+    # Use the same logic as the cases page to extract years
+    years_data = get_case_years(db, None)
+    years = sorted([y["year"] for y in years_data if y["year"] != "Unknown"], reverse=True)
+    
+    return {
+        "incident_type": sorted(incident_types),
+        "command": sorted(commands),
+        "analyst": sorted(analysts),
+        "investigating_officer": sorted(investigating_officers),
+        "dates": all_dates,
+        "years": years
+    }
+
+@router.get("/search/advanced")
+def advanced_search(
+    filters: Optional[str] = Query(None, description="JSON array of filters"),
+    year: Optional[str] = Query(None, description="Year filter"),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(20, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user)
+):
+    query = db.query(Case)
+    query, global_term = apply_search_filters(query, filters, year)
 
     # Get total count efficiently
     total = query.count()
@@ -527,7 +545,7 @@ def update_case(
     for field, value in update_data.items():
         setattr(case, field, value)
 
-    case.updated_at = datetime.utcnow()
+    case.updated_at = datetime.now(timezone.utc)
 
     db.commit()
     db.refresh(case)
@@ -586,7 +604,7 @@ def reprocess_case(
     if not case.date_return: case.date_return = fields.get("date_return")
     if not case.command: case.command = fields.get("command")
     if not case.suspected_pio_numbers: case.suspected_pio_numbers = fields.get("suspected_pio_numbers")
-    if not case.suspected_pio_count: case.suspected_pio_count = fields.get("suspected_pio_count", 0)
+    if case.suspected_pio_count is None: case.suspected_pio_count = fields.get("suspected_pio_count", 0)
     if not case.incident_type: case.incident_type = fields.get("incident_type")
     case.year = extract_case_year(
         source_folder=case.source_folder,
@@ -595,7 +613,7 @@ def reprocess_case(
         created_at=case.created_at
     )
 
-    case.updated_at = datetime.utcnow()
+    case.updated_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(case)
 
@@ -888,8 +906,9 @@ def convert_docx_to_html(file_path: str, search_term: str = None) -> str:
         
         if search_term:
             escaped_term = html.escape(search_term)
-            # Use \b to match prefix word boundaries only, preventing substring highlighting
-            pattern = re.compile(r'(<[^>]+>)|(\b' + re.escape(escaped_term) + r')', re.IGNORECASE)
+            # Use negative lookbehind (?<!\w) to ensure it's not part of a larger word,
+            # this correctly handles terms that start with non-word characters like '+'
+            pattern = re.compile(r'(<[^>]+>)|((?<!\w)' + re.escape(escaped_term) + r')', re.IGNORECASE)
             hit_index = 0
             def replace_match(m):
                 nonlocal hit_index

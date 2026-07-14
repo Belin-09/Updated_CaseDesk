@@ -25,7 +25,7 @@ def validate_extraction(
 
     # Check 1 — extraction crashed
     if extraction_exception:
-        return True, "EXTRACTION_EXCEPTION"
+        return True, f"EXTRACTION_EXCEPTION: {extraction_exception}"
 
     # Check 2 — no text extracted at all
     if not raw_text or not raw_text.strip():

@@ -87,6 +87,7 @@ def backfill_pertains_fields():
                     case.command = fields.get("command")
                 if not case.suspected_pio_numbers:
                     case.suspected_pio_numbers = fields.get("suspected_pio_numbers")
+                if case.suspected_pio_count is None:
                     case.suspected_pio_count = fields.get("suspected_pio_count", 0)
                 
         db.commit()

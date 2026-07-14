@@ -11,14 +11,54 @@ document.addEventListener("DOMContentLoaded", () => {
   let lastFilters = null;
   let lastHighlightTerm = "";
 
-  async function fetchSearchOptions() {
+  function getActiveFilters() {
+    const rows = document.querySelectorAll(".filter-row");
+    const filters = [];
+    const dropdownCats = ["incident_type", "command", "analyst", "investigating_officer", "dates"];
+    
+    rows.forEach(row => {
+      const cat = row.querySelector(".searchCategory").value;
+      const termInput = row.querySelector(".searchTermInput");
+      const termSelect = row.querySelector(".searchTermSelect");
+      
+      if (cat === "confirmed_pio") {
+        filters.push({ category: cat, term: "true" });
+        return;
+      }
+      
+      let term = "";
+      if (dropdownCats.includes(cat) && termSelect.style.display !== "none") {
+        term = termSelect.value;
+      } else {
+        term = termInput.value.trim();
+      }
+      
+      if (term) {
+        filters.push({ category: cat, term: term });
+      }
+    });
+    return filters;
+  }
+
+  async function fetchSearchOptions(year = null, filters = null) {
     try {
-      const response = await apiFetch("/cases/search/options");
+      let url = "/cases/search/options";
+      const params = new URLSearchParams();
+      if (year && year !== "all") {
+        params.append("year", year);
+      }
+      if (filters && filters.length > 0) {
+        params.append("filters", JSON.stringify(filters));
+      }
+      if (params.toString()) {
+        url += "?" + params.toString();
+      }
+      const response = await apiFetch(url);
       if (response && response.ok) {
         searchMetadataOptions = await response.json();
         
         const searchYear = document.querySelector(".searchYear");
-        if (searchYear && searchMetadataOptions.years && searchMetadataOptions.years.length > 0) {
+        if (searchYear && searchMetadataOptions.years && searchMetadataOptions.years.length > 0 && searchYear.options.length <= 1) {
           searchMetadataOptions.years.forEach(y => {
             const opt = document.createElement("option");
             opt.value = y;
@@ -52,11 +92,25 @@ document.addEventListener("DOMContentLoaded", () => {
       console.error("Failed to load search options", e);
     }
   }
+  
+  const globalSearchYear = document.querySelector(".searchYear");
+  if (globalSearchYear) {
+    globalSearchYear.addEventListener("change", async (e) => {
+      await fetchSearchOptions(e.target.value, getActiveFilters());
+      // Re-populate all visible dropdowns
+      document.querySelectorAll(".filter-row").forEach(row => {
+         const cat = row.querySelector(".searchCategory").value;
+         populateRowDropdown(row, cat);
+      });
+    });
+  }
+
   fetchSearchOptions();
 
   function populateRowDropdown(row, cat) {
     const termInput = row.querySelector(".searchTermInput");
     const termSelect = row.querySelector(".searchTermSelect");
+    const currentValue = termSelect.value;
     
     const globalYearEl = document.querySelector(".searchYear");
     const year = globalYearEl ? globalYearEl.value : "all";
@@ -69,10 +123,6 @@ document.addEventListener("DOMContentLoaded", () => {
       
       termSelect.innerHTML = "";
       let optionsList = searchMetadataOptions[cat] || [];
-      
-      if (year !== "all" && cat === "dates") {
-        optionsList = optionsList.filter(val => val.toString().includes(year));
-      }
       
       if (cat === "dates") {
         optionsList.sort((a, b) => {
@@ -91,12 +141,23 @@ document.addEventListener("DOMContentLoaded", () => {
         opt.textContent = "-- No options available --";
         termSelect.appendChild(opt);
       } else {
+        // Always add an empty "Select..." option for faceted search
+        const defaultOpt = document.createElement("option");
+        defaultOpt.value = "";
+        defaultOpt.textContent = "-- Select --";
+        termSelect.appendChild(defaultOpt);
+
         optionsList.forEach(val => {
           const opt = document.createElement("option");
           opt.value = val;
           opt.textContent = val;
           termSelect.appendChild(opt);
         });
+        
+        // Restore value if it exists
+        if (currentValue && Array.from(termSelect.options).some(opt => opt.value === currentValue)) {
+            termSelect.value = currentValue;
+        }
       }
     } else if (cat === "confirmed_pio") {
       termInput.style.display = "none";
@@ -111,14 +172,34 @@ document.addEventListener("DOMContentLoaded", () => {
     const catSelect = row.querySelector(".searchCategory");
     const removeBtn = row.querySelector(".remove-row-btn");
     const searchInput = row.querySelector(".searchTermInput");
+    const termSelect = row.querySelector(".searchTermSelect");
     
     catSelect.addEventListener("change", (e) => {
       populateRowDropdown(row, e.target.value);
     });
     
+    if (termSelect) {
+        termSelect.addEventListener("change", async () => {
+            const year = document.querySelector(".searchYear") ? document.querySelector(".searchYear").value : null;
+            await fetchSearchOptions(year, getActiveFilters());
+            document.querySelectorAll(".filter-row").forEach(r => {
+               if (r !== row) { // Repopulate other rows
+                   const cat = r.querySelector(".searchCategory").value;
+                   populateRowDropdown(r, cat);
+               }
+            });
+        });
+    }
+    
     if (removeBtn) {
-        removeBtn.addEventListener("click", () => {
+        removeBtn.addEventListener("click", async () => {
             row.remove();
+            const year = document.querySelector(".searchYear") ? document.querySelector(".searchYear").value : null;
+            await fetchSearchOptions(year, getActiveFilters());
+            document.querySelectorAll(".filter-row").forEach(r => {
+               const cat = r.querySelector(".searchCategory").value;
+               populateRowDropdown(r, cat);
+            });
         });
     }
     
@@ -211,31 +292,7 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   async function triggerSearch() {
-    const rows = document.querySelectorAll(".filter-row");
-    const filters = [];
-    const dropdownCats = ["incident_type", "command", "analyst", "investigating_officer", "dates"];
-    
-    rows.forEach(row => {
-      const cat = row.querySelector(".searchCategory").value;
-      const termInput = row.querySelector(".searchTermInput");
-      const termSelect = row.querySelector(".searchTermSelect");
-      
-      if (cat === "confirmed_pio") {
-        filters.push({ category: cat, term: "true" });
-        return;
-      }
-      
-      let term = "";
-      if (dropdownCats.includes(cat) && termSelect.style.display !== "none") {
-        term = termSelect.value;
-      } else {
-        term = termInput.value.trim();
-      }
-      
-      if (term) {
-        filters.push({ category: cat, term: term });
-      }
-    });
+    const filters = getActiveFilters();
 
     if (filters.length === 0) {
       alert("Please enter or select at least one search query term.");

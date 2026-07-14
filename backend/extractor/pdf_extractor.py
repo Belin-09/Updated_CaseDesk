@@ -2,6 +2,8 @@ import pdfplumber
 import pytesseract
 from pdf2image import convert_from_path, pdfinfo_from_path
 import os
+import tempfile
+from PIL import Image
 from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
@@ -27,50 +29,58 @@ def extract_from_digital_pdf(file_path: str) -> tuple[str, None]:
 
 from extractor.image_extractor import preprocess_image, reconstruct_text
 
-def _process_single_page(image, page_num):
+def _process_single_page(image_path, page_num):
     try:
-        processed_image = preprocess_image(image)
-        data = pytesseract.image_to_data(
-            processed_image,
-            output_type=pytesseract.Output.DICT
-        )
-        page_text = reconstruct_text(data)
-        page_confidences = [
-            int(c) for c in data["conf"] if str(c) != "-1"
-        ]
-        return page_num, page_text, page_confidences
+        with Image.open(image_path) as image:
+            processed_image = preprocess_image(image)
+            try:
+                data = pytesseract.image_to_data(
+                    processed_image,
+                    output_type=pytesseract.Output.DICT
+                )
+                page_text = reconstruct_text(data)
+                page_confidences = [
+                    int(c) for c in data["conf"] if str(c) != "-1"
+                ]
+                return page_num, page_text, page_confidences
+            finally:
+                processed_image.close()
     except Exception as e:
         raise RuntimeError(f"Tesseract OCR failed on page {page_num}: {str(e)}")
 
 def extract_from_scanned_pdf(file_path: str) -> tuple[str, float]:
     """Extract text from a scanned PDF using pdf2image + tesseract with layout preservation and preprocessing."""
     try:
-        # Batch convert all pages to images using native poppler threads
-        images = convert_from_path(
-            file_path,
-            dpi=150,
-            poppler_path=POPPLER_PATH,
-            thread_count=4
-        )
-    except Exception as e:
-        raise RuntimeError(f"convert_from_path failed: {str(e)}")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            # Batch convert pages to temp JPEGs to save RAM
+            image_paths = convert_from_path(
+                file_path,
+                dpi=150,
+                output_folder=temp_dir,
+                fmt="jpeg",
+                paths_only=True,
+                poppler_path=POPPLER_PATH,
+                thread_count=4
+            )
 
-    results = [None] * len(images)
-    
-    # Process images concurrently using threads
-    with ThreadPoolExecutor(max_workers=4) as executor:
-        futures = {
-            executor.submit(_process_single_page, image, idx + 1): idx 
-            for idx, image in enumerate(images)
-        }
-        
-        for future in futures:
-            idx = futures[future]
-            try:
-                _, page_text, page_confidences = future.result()
-                results[idx] = (page_text, page_confidences)
-            except Exception as e:
-                raise e
+            results = [None] * len(image_paths)
+            
+            # Process images concurrently using threads
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {
+                    executor.submit(_process_single_page, path, idx + 1): idx 
+                    for idx, path in enumerate(image_paths)
+                }
+                
+                for future in futures:
+                    idx = futures[future]
+                    try:
+                        _, page_text, page_confidences = future.result()
+                        results[idx] = (page_text, page_confidences)
+                    except Exception as e:
+                        raise e
+    except Exception as e:
+        raise RuntimeError(f"PDF Extraction failed: {str(e)}")
 
     text = ""
     confidences = []

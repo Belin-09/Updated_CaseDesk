@@ -12,7 +12,7 @@ from extractor.field_parser import parse_fields, count_extracted_fields, extract
 from validator import validate_extraction
 from extractor.folder_scanner import get_case_folders, process_case_folder, get_folder_fingerprint
 from pydantic import BaseModel
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter(prefix="/upload", tags=["Upload"])
 
@@ -139,7 +139,7 @@ def upload_file(
         year=extract_case_year(
             case_name=file.filename,
             date_deposition=fields.get("date_deposition"),
-            created_at=datetime.utcnow()
+            created_at=datetime.now(timezone.utc)
         )
     )
     db.add(case)
@@ -252,7 +252,7 @@ def process_single_folder(folder: dict, username: str):
                 date_deposition=data.get("date_deposition"),
                 created_at=existing.created_at
             )
-            existing.updated_at = datetime.utcnow()
+            existing.updated_at = datetime.now(timezone.utc)
 
             # Replace old per-file records with fresh ones
             db.query(CaseFile).filter(CaseFile.case_id == existing.id).delete()
@@ -295,7 +295,7 @@ def process_single_folder(folder: dict, username: str):
 
             case = Case(
                 case_name=data["case_name"],
-                created_at=folder.get("assigned_created_at", datetime.utcnow()),
+                created_at=folder.get("assigned_created_at", datetime.now(timezone.utc)),
                 source_folder=data["source_folder"],
                 file_name=data["file_name"],
                 file_path=data["file_path"],
@@ -324,7 +324,7 @@ def process_single_folder(folder: dict, username: str):
                     source_folder=data["source_folder"],
                     case_name=data["case_name"],
                     date_deposition=data.get("date_deposition"),
-                    created_at=datetime.utcnow()
+                    created_at=datetime.now(timezone.utc)
                 )
             )
             db.add(case)
@@ -394,7 +394,7 @@ def run_folder_scan(root_path: str, username: str, scan_id: str):
             scan_state["total"] = len(case_folders)
 
         from datetime import timedelta
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for i, folder in enumerate(case_folders):
             folder["assigned_created_at"] = now - timedelta(seconds=i)
 
@@ -407,6 +407,10 @@ def run_folder_scan(root_path: str, username: str, scan_id: str):
                 for folder in case_folders
             ]
             for future in as_completed(futures):
+                with scan_lock:
+                    if scan_state.get("cancel_requested"):
+                        for f in futures:
+                            f.cancel()
                 try:
                     future.result()
                 except Exception as e:
@@ -416,14 +420,14 @@ def run_folder_scan(root_path: str, username: str, scan_id: str):
             scan_state["status"] = "cancelled" if scan_state.get("cancel_requested") else "completed"
             scan_state["active"] = False
             scan_state["current_case"] = None
-            scan_state["finished_at"] = datetime.utcnow().isoformat()
+            scan_state["finished_at"] = datetime.now(timezone.utc).isoformat()
 
     except Exception as e:
         with scan_lock:
             scan_state["status"] = "failed"
             scan_state["active"] = False
             scan_state["error"] = str(e)
-            scan_state["finished_at"] = datetime.utcnow().isoformat()
+            scan_state["finished_at"] = datetime.now(timezone.utc).isoformat()
 
 
 # ── Scan-folder endpoint — starts background job, returns immediately ───────

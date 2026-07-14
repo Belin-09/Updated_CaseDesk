@@ -1,6 +1,7 @@
 let flaggedCases = [];
 let selectedCaseId = null;
 let activeFileIndex = 0;
+let currentDetailCase = null;
 
 const reviewList = document.getElementById("reviewList");
 const reviewDetail = document.getElementById("reviewDetail");
@@ -35,15 +36,23 @@ async function loadReviewQueue() {
 }
 
 function renderList() {
-  reviewList.innerHTML = flaggedCases.map(c => `
-    <div class="review-list-item ${c.id === selectedCaseId ? 'active' : ''}" onclick="selectCase(${c.id})">
-      <div class="review-list-item-left">
-        <div class="title">${escapeHtml(c.case_name || c.file_name || 'Untitled Case')}</div>
-        <div class="meta">Uploaded by ${escapeHtml(c.uploaded_by || 'unknown')}</div>
+  reviewList.innerHTML = flaggedCases.map(c => {
+    let shortReason = c.error_reason || "";
+    let isExtractionEx = shortReason.startsWith("EXTRACTION_EXCEPTION:");
+    let badgeText = isExtractionEx ? "EXTRACTION_EXCEPTION" : shortReason;
+    
+    return `
+    <div class="review-list-item ${c.id === selectedCaseId ? 'active' : ''}" onclick="selectCase(${c.id})" style="flex-direction: column; align-items: stretch; gap: 8px;">
+      <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+        <div class="review-list-item-left">
+          <div class="title">${escapeHtml(c.case_name || c.file_name || 'Untitled Case')}</div>
+          <div class="meta">Uploaded by ${escapeHtml(c.uploaded_by || 'unknown')} ${c.file_count ? `• ${c.file_count} files` : ''}</div>
+        </div>
+        <span class="reason-badge">${badgeText}</span>
       </div>
-      <span class="reason-badge">${c.error_reason}</span>
+      ${isExtractionEx ? `<div style="font-size: 11px; color: #cc0000; background: #fff0f0; padding: 6px; border-radius: 4px; border: 1px solid #ffcccc; word-break: break-all;">${escapeHtml(shortReason.replace("EXTRACTION_EXCEPTION: ", ""))}</div>` : ''}
     </div>
-  `).join("");
+  `}).join("");
 }
 
 // ── Select + load detail ────────────────────────────────────────────────
@@ -57,6 +66,7 @@ async function selectCase(caseId) {
   if (!response) return;
 
   const c = await response.json();
+  currentDetailCase = c;
   renderDetail(c);
 }
 
@@ -71,10 +81,28 @@ function renderDetail(c) {
 
   const activeFile = c.files[activeFileIndex];
 
+  let detailedReason = c.error_reason;
+  if (c.error_reason === "LOW_FIELDS") {
+      let missing = [];
+      if (!c.analyst) missing.push("Analyst");
+      if (!c.investigating_officer) missing.push("Investigating Officer");
+      if (!c.pertains_service_no && !c.pertains_name && !c.pertains_unit) missing.push("Pertains Details");
+      if (!c.incident_type) missing.push("Incident Type");
+      if (!c.command) missing.push("Military Command");
+      if (!c.date_deposition) missing.push("Deposition Date");
+      if (missing.length > 0) detailedReason += ` (Missing: ${missing.join(", ")})`;
+  } else if (c.error_reason === "LOW_OCR_CONFIDENCE") {
+      let confs = c.files.map(f => f.ocr_confidence).filter(x => x != null);
+      if (confs.length > 0) {
+          let avg = Math.round(confs.reduce((a,b)=>a+b, 0) / confs.length);
+          detailedReason += ` (Average confidence: ${avg}%)`;
+      }
+  }
+
   reviewDetail.innerHTML = `
     <h3 style="font-size:16px; margin-bottom:4px;">${escapeHtml(c.case_name || 'Untitled Case')}</h3>
     <div style="font-size:12px; color:#5a6473; margin-bottom:18px;">
-      Flag reason: <span style="color:#ff8080;">${c.error_reason}</span>
+      Flag reason: <span style="color:#ff8080; font-weight:600;">${escapeHtml(detailedReason)}</span>
     </div>
 
     <div class="review-files-row">${fileTabs}</div>
@@ -155,9 +183,10 @@ function renderDetail(c) {
 }
 
 function switchFile(index) {
-  activeFileIndex = index;
-  const c = flaggedCases.find(fc => fc.id === selectedCaseId);
-  selectCase(selectedCaseId); // reload to keep it simple and consistent
+  if (currentDetailCase) {
+    activeFileIndex = index;
+    renderDetail(currentDetailCase);
+  }
 }
 
 // ── Resolve ──────────────────────────────────────────────────────────────
@@ -248,5 +277,7 @@ reasonFilter.addEventListener("change", () => {
 });
 
 // ── Init ─────────────────────────────────────────────────────────────────
+
+// switchFile is defined above
 
 loadReviewQueue();
