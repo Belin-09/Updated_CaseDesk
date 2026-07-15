@@ -88,7 +88,7 @@ def get_analytics_summary(
             "details": details
         })
 
-    commands = ["Central", "Northern", "Southern", "Eastern", "Western", "North Eastern", "South Western"]
+    commands = ["Southern", "Eastern", "Western", "Central", "Northern", "South Western", "ARTRAC"]
     
     cases_by_command_year = {
         "years": sorted_years,

@@ -41,7 +41,7 @@ def clean_value(value: str) -> str:
 # ── Custom Field Extractors ──────────────────────────────────────────────
 
 COMMAND_KEYWORDS = [
-    ("North Eastern", [r"north\s*(?:eastern|east)\s*(?:command|comd)?", r"\bne\s+comd\b"]),
+    ("ARTRAC", [r"army\s*training\s*command", r"\bartrac\b", r"\bar\s*trg\s*comd\b"]),
     ("South Western", [r"south\s*(?:western|west)\s*(?:command|comd)?", r"\bsw\s+comd\b"]),
     ("Central", [r"(?:central|centre)\s+(?:command|comd)", r"\b(?:central|centre)\b"]),
     ("Northern", [r"(?:northern|north)\s+(?:command|comd)", r"\b(?:northern|north)\b"]),
@@ -73,15 +73,22 @@ def extract_suspected_pio_numbers(text: str) -> tuple[str, int]:
     if not text:
         return "", 0
     patterns = [
-        r"(?:suspected\s+pio|suspect\s+pio|pio\s*(?:no|number)?|pio\s+mobile|pio\s+contact|suspected\s+pio\s+contact)[\s:–\-]*(\+?\d[\d\s\-]{8,15}\d)",
-        r"(?:suspected\s+pio|suspect\s+pio|pio)[\s\w:\-]*?(\+?\d{10,15})"
+        r"(?:suspected\s+pio|suspect\s+pio|pio\s*(?:no|number)?|pio\s+mobile|pio\s+contact|suspected\s+pio\s+contact|suspect|suspected)[\s:–\-'\"`]*([+()\s]*\d[\d\s\-()]{7,18}\d)",
+        r"(?:suspected\s+pio|suspect\s+pio|pio|suspect|suspected)[\s\w:\-'\"`]*?([+()\s]*\d[\d\s\-()]{7,18}\d)"
     ]
     found_numbers = set()
     for pat in patterns:
         for match in re.finditer(pat, text, re.IGNORECASE):
-            raw_num = re.sub(r"[^\d+]", "", match.group(1))
-            if len(raw_num) >= 10:
-                found_numbers.add(raw_num)
+            # Extract only digits from the matched string
+            clean_digits = re.sub(r"\D", "", match.group(1))
+            
+            # Skip likely IMEI numbers (which are exactly 15 digits long)
+            if len(clean_digits) == 15:
+                continue
+                
+            if len(clean_digits) >= 10:
+                # Take only the last 10 digits as the core phone number
+                found_numbers.add(clean_digits[-10:])
 
     numbers_str = ", ".join(sorted(found_numbers))
     return numbers_str, len(found_numbers)
@@ -106,8 +113,8 @@ def extract_pertains_service_no(text: str) -> Optional[str]:
     if not text:
         return None
     patterns = [
-        r"(?:service\s+no|army\s+no|personal\s+no|no\.?)[\s:–\-]+([A-Z]{2,3}[\-\s]?\d{5,6}[A-Z]?|\d{7,8}[A-Z]?)",
-        r"\b([A-Z]{2,3}[\-\s]?\d{5,6}[A-Z]?|\d{7,8}[A-Z])\b"
+        r"(?:service\s+no|army\s+no|personal\s+no|no\.?)[\s:–\-]+([A-Z]{2,3}[\-\s\/]?\d{5,6}[A-Z]?|\d{7,8}[A-Z]?)",
+        r"\b([A-Z]{2,3}[\-\s\/]?\d{5,6}[A-Z]?|\d{7,8}[A-Z])\b"
     ]
     for pat in patterns:
         match = re.search(pat, text, re.IGNORECASE)
@@ -153,8 +160,8 @@ def extract_ro_pattern(text: str) -> Optional[dict]:
         return None
         
     patterns = [
-        r"\br/o\s+([A-Z0-9\-\s\n]{4,25}?)\s+([\s\S]{1,60}?)\s+of\s+([\s\S]{1,100}?)(?:\s+of\s+|\n|\(|case\b|$)",
-        r"PERMISSION\s+FOR\s+CFI:\s+([A-Z0-9\-\s\n]{4,25}?)\s+([\s\S]{1,60}?)\s+OF\s+([\s\S]{1,100}?)(?:\s+OF\s+|\n|\(|case\b|$)"
+        r"\br/o\s+([A-Z0-9\-\/\s\n]{4,25}?)\s+([\s\S]{1,60}?)\s+of\s+([\s\S]{1,100}?)(?:\s+of\s+|\n|\(|case\b|$)",
+        r"PERMISSION\s+FOR\s+CFI:\s+([A-Z0-9\-\/\s\n]{4,25}?)\s+([\s\S]{1,60}?)\s+OF\s+([\s\S]{1,100}?)(?:\s+OF\s+|\n|\(|case\b|$)"
     ]
     
     for pattern in patterns:
@@ -173,6 +180,19 @@ def extract_ro_pattern(text: str) -> Optional[dict]:
                     "pertains_name": name,
                     "pertains_unit": unit
                 }
+                
+    # Fallback: Capture everything after R/O up to "(CASE NO" or "Refs:"
+    fallback_pattern = r"\br/o\s+([\s\S]+?)\s*(?:\(\s*case\s*no\b|refs\s*:)"
+    fallback_match = re.search(fallback_pattern, text, re.IGNORECASE)
+    if fallback_match:
+        extracted = fallback_match.group(1).strip()
+        extracted = re.sub(r"\s+", " ", extracted) # Clean up newlines
+        return {
+            "pertains_service_no": None,
+            "pertains_name": extracted,
+            "pertains_unit": None
+        }
+
     return None
 
 def split_merged_text_by_file(merged_text: str) -> dict:
@@ -191,6 +211,7 @@ def split_merged_text_by_file(merged_text: str) -> dict:
     return files_dict
 
 def extract_analyst_name(files_dict: dict) -> Optional[str]:
+    invalid_keywords = ["see ", "case", "ref", "annexure", "encl", "appx", "appendix", "para"]
     for fname, text in files_dict.items():
         if "noting" in fname and "sheet" in fname:
             lines = text.split("\n")
@@ -201,23 +222,24 @@ def extract_analyst_name(files_dict: dict) -> Optional[str]:
                         m = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[j])
                         if m:
                             val = m.group(1).strip()
-                            if val:
+                            if val and len(val) >= 3 and len(val) <= 40 and len(lines[j].strip()) <= len(val) + 10 and not any(k in val.lower() for k in invalid_keywords):
                                 return val
                 elif "pu for perusal, tech review and approval" in lower_line or "tech review and approval pl" in lower_line:
                     for j in range(i, min(len(lines), i + 6)):
                         m = re.search(r"\(\s*([A-Za-z\s\.\-]+?)\s*\)", lines[j])
                         if m:
                             val = m.group(1).strip()
-                            if val:
+                            if val and len(val) >= 3 and len(val) <= 40 and len(lines[j].strip()) <= len(val) + 10 and not any(k in val.lower() for k in invalid_keywords):
                                 return val
     return None
 
 def extract_investigating_officer(files_dict: dict) -> Optional[str]:
-    io_keywords = ["investigating officer", "investigating offr", "inv officer", "oic cyber forensic lab"]
+    io_keywords = ["investigating officer", "investigating offr", "inv officer", "oic cyber forensic lab", "oic, cyber forensic lab"]
     for fname, text in files_dict.items():
         if "covering" in fname and "letter" in fname:
             lines = text.split("\n")
-            for i, line in enumerate(lines):
+            for i in range(len(lines) - 1, -1, -1):
+                line = lines[i]
                 lower_line = line.lower()
                 if any(k in lower_line for k in io_keywords):
                     rank = None

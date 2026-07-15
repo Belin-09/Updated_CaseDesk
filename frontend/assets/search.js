@@ -387,9 +387,7 @@ document.addEventListener("DOMContentLoaded", () => {
     casesGrid.innerHTML = cases.map(c => {
       const detailUrl = `case-detail.html?id=${c.id}&v=1.9${term ? '&search=' + encodeURIComponent(term) : ''}`;
       
-      const statusBadge = c.error_flag
-        ? `<span class="badge badge-flagged">Flagged</span>`
-        : ``;
+      const statusBadge = "";
 
       const hitsBadge = (term && c.hit_count !== undefined && c.hit_count > 0)
         ? `<span class="badge" style="background: rgba(79, 156, 255, 0.15); color: #4f9cff; border: 1px solid rgba(79, 156, 255, 0.3); font-weight: 700; border-radius: 12px; padding: 2px 8px; font-size: 10px; text-transform: uppercase;">${c.hit_count} Hits</span>`
@@ -433,13 +431,13 @@ document.addEventListener("DOMContentLoaded", () => {
           </div>
           
           <div class="case-card-field">
-            <span class="case-card-field-label">Analyst</span>
-            <span class="case-card-field-value">${escapeHtml(c.analyst || '—')}</span>
+            <span class="case-card-field-label">IO</span>
+            <span class="case-card-field-value">${escapeHtml(c.investigating_officer || '—')}</span>
           </div>
           
           <div class="case-card-field">
-            <span class="case-card-field-label">IO</span>
-            <span class="case-card-field-value">${escapeHtml(c.investigating_officer || '—')}</span>
+            <span class="case-card-field-label">Analyst</span>
+            <span class="case-card-field-value">${escapeHtml(c.analyst || '—')}</span>
           </div>
           
           <div class="case-card-field">

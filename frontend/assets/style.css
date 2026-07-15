@@ -653,6 +653,8 @@ mark.search-highlight.active-hit {
   border-radius: 12px;
   padding: 28px;
   width: 420px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
 .modal-box h2 {
@@ -1810,11 +1812,28 @@ body.login-page {
 .preview-sub-tabs.vertical-sub-tabs {
   flex-direction: column;
   overflow-x: hidden;
-  overflow-y: visible;
+  overflow-y: auto;
+  max-height: 250px;
   margin-left: 12px;
   margin-top: -2px;
   margin-bottom: 6px;
   padding: 6px;
+  scrollbar-width: thin;
+}
+
+.preview-sub-tabs.vertical-sub-tabs::-webkit-scrollbar {
+  width: 6px;
+}
+.preview-sub-tabs.vertical-sub-tabs::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+}
+.preview-sub-tabs.vertical-sub-tabs::-webkit-scrollbar-thumb {
+  background-color: #2a3441;
+  border-radius: 4px;
+}
+.preview-sub-tabs.vertical-sub-tabs:hover::-webkit-scrollbar-thumb {
+  background-color: #4f9cff;
 }
 
 .preview-tabs.vertical-tabs .preview-tab,

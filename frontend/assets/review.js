@@ -115,12 +115,12 @@ function renderDetail(c) {
 
     <div class="field-row">
       <div class="field-group">
-        <label>Analyst</label>
-        <input type="text" id="r_analyst" value="${escapeAttr(c.analyst)}">
-      </div>
-      <div class="field-group">
         <label>Investigating Officer</label>
         <input type="text" id="r_investigating_officer" value="${escapeAttr(c.investigating_officer)}">
+      </div>
+      <div class="field-group">
+        <label>Analyst</label>
+        <input type="text" id="r_analyst" value="${escapeAttr(c.analyst)}">
       </div>
     </div>
     <div class="field-row" style="grid-template-columns: repeat(3, 1fr);">

@@ -196,6 +196,14 @@ def startup_db_init():
     except Exception as e:
         print(f"Error running year column backfill: {e}")
 
+    # Start the background scheduler
+    try:
+        from scheduler import start_scheduler
+        start_scheduler()
+    except Exception as e:
+        print(f"Error starting scheduler: {e}")
+
+
 # Parse allowed origins from env
 allowed_origins_raw = os.getenv("ALLOWED_ORIGINS", "http://127.0.0.1:5500,http://localhost:5500,http://127.0.0.1:8000,http://localhost:8000")
 allowed_origins = [o.strip() for o in allowed_origins_raw.split(",") if o.strip()]

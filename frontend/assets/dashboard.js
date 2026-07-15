@@ -67,9 +67,7 @@ function renderCases(cases) {
   const searchTerm = searchInput.value.trim();
   const isSearchActive = !!searchTerm;
   caseGrid.innerHTML = cases.map(c => {
-    const statusBadge = c.error_flag
-      ? `<span class="badge badge-flagged">Flagged</span>`
-      : ``;
+    const statusBadge = "";
 
     const hitsBadge = (isSearchActive && c.hit_count !== undefined)
       ? `<span class="badge badge-hits">${c.hit_count} hit${c.hit_count !== 1 ? 's' : ''}</span>`
@@ -114,12 +112,12 @@ function renderCases(cases) {
           </div>
         </div>
         <div class="case-card-field">
-          <span class="case-card-field-label">Analyst</span>
-          <span class="case-card-field-value">${escapeHtml(c.analyst || '—')}</span>
-        </div>
-        <div class="case-card-field">
           <span class="case-card-field-label">IO</span>
           <span class="case-card-field-value">${escapeHtml(c.investigating_officer || '—')}</span>
+        </div>
+        <div class="case-card-field">
+          <span class="case-card-field-label">Analyst</span>
+          <span class="case-card-field-value">${escapeHtml(c.analyst || '—')}</span>
         </div>
         <div class="case-card-field">
           <span class="case-card-field-label">Pertains to</span>

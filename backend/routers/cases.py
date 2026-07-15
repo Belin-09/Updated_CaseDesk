@@ -45,6 +45,13 @@ def get_search_pattern(search_term: str):
     # Normalize search term by replacing spaces and hyphens with a single space
     search_norm = re.sub(r'[\s\-]+', ' ', search_term.lower()).strip()
     
+    # If the search term is a long number (like a phone number), 
+    # allow optional spaces and dashes between the digits to catch formatting variations in raw_text.
+    digits_only = re.sub(r'\D', '', search_norm)
+    if len(digits_only) >= 5 and len(digits_only) == len(search_norm.replace(' ', '')):
+        flex_pattern = r'[\s\-]*'.join(re.escape(d) for d in digits_only)
+        return re.compile(flex_pattern, re.IGNORECASE)
+    
     # We want prefix matching to match FULLTEXT behavior (e.g. +term*)
     return re.compile(re.escape(search_norm), re.IGNORECASE)
 
@@ -145,15 +152,15 @@ def list_cases(
                 ))
         else:
             # Use FULLTEXT index for searching across all indexed columns
-            safe_term = search_term.replace('"', '').strip()
-            if ' ' in safe_term:
-                # Multi-word: exact phrase search
-                ft_term = f'"{safe_term}"'
-            else:
-                # Single-word: prefix search
-                ft_term = f'+{safe_term}*'
-            
+            safe_term = search_term.lstrip('+-~<>"\'').strip()
             if safe_term:
+                if ' ' in safe_term:
+                    # Multi-word: exact phrase search
+                    ft_term = f'"{safe_term}"'
+                else:
+                    # Single-word: prefix search
+                    ft_term = f'+{safe_term}*'
+                
                 query = query.filter(
                     text("MATCH(raw_text, case_name, file_name, source_folder, incident_type, status, command, analyst, investigating_officer, pertains_service_no, pertains_name, pertains_unit, suspected_pio_numbers, error_reason, review_note, uploaded_by) AGAINST(:ft_term IN BOOLEAN MODE)")
                 ).params(ft_term=ft_term)
@@ -178,9 +185,9 @@ def list_cases(
     # Sorting
     sort_column = getattr(Case, sort_by, Case.created_at)
     if order == "asc":
-        query = query.order_by(sort_column.asc())
+        query = query.order_by(sort_column.asc(), Case.id.asc())
     else:
-        query = query.order_by(sort_column.desc())
+        query = query.order_by(sort_column.desc(), Case.id.desc())
 
     matched_files_map = defaultdict(list)
     if search:
@@ -395,7 +402,7 @@ def advanced_search(
     total = query.count()
 
     # Paginate at DB level
-    cases = query.order_by(Case.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    cases = query.order_by(Case.created_at.desc(), Case.id.desc()).offset((page - 1) * page_size).limit(page_size).all()
 
     matched_files_map = defaultdict(list)
     if global_term and cases:

@@ -296,7 +296,18 @@ function renderTabs(files, caseRawText, mainFileName, caseId, sourceFolder) {
 window.selectFolderTab = function(folderName) {
   const folderFiles = window.folderGroups[folderName];
   if (folderFiles && folderFiles.length > 0) {
-    selectTab(folderFiles[0].flatIndex);
+    if (window.activeFolderName === folderName) {
+      // Toggle closed
+      window.activeFolderName = null;
+      const subContainer = document.getElementById("previewSubTabsContainer");
+      if (subContainer) {
+        subContainer.style.display = "none";
+      }
+      document.querySelectorAll(".preview-folder-tab").forEach(tab => tab.classList.remove("active"));
+    } else {
+      // Open and select first file
+      selectTab(folderFiles[0].flatIndex);
+    }
   }
 };
 

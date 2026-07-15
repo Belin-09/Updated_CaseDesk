@@ -104,13 +104,13 @@ const customBarDecorations = {
 
           if (!isStacked) {
             const cmdMap = {
-              "Central": "C",
-              "Northern": "N",
-              "Southern": "S",
-              "Eastern": "E",
-              "Western": "W",
-              "North Eastern": "NE",
-              "South Western": "SW",
+              "Southern": "SC",
+              "Eastern": "EC",
+              "Western": "WC",
+              "Central": "CC",
+              "Northern": "NC",
+              "South Western": "SWC",
+              "ARTRAC": "AR",
               "Unassigned": "U"
             };
             if (cmdMap[dataset.label]) {
@@ -560,9 +560,7 @@ async function fetchAndShowCasesModal(headerText, subheaderText, apiParams) {
     }
 
     casesListModalContainer.innerHTML = list.map(c => {
-      const statusBadge = c.error_flag
-        ? `<span class="badge badge-flagged" style="padding: 2px 6px; font-size: 10px;">Flagged</span>`
-        : `<span class="badge badge-${c.status || 'open'}" style="padding: 2px 6px; font-size: 10px;">${c.status || 'open'}</span>`;
+      const statusBadge = `<span class="badge badge-${c.status || 'open'}" style="padding: 2px 6px; font-size: 10px;">${c.status || 'open'}</span>`;
 
       return `
         <div style="display: flex; align-items: center; justify-content: space-between; padding: 12px; background: #0f1419; border: 1px solid #2a3441; border-radius: 6px; margin-bottom: 8px; font-size: 13.5px; transition: all 0.15s ease;">

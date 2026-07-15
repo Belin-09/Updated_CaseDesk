@@ -395,8 +395,11 @@ def run_folder_scan(root_path: str, username: str, scan_id: str):
 
         from datetime import timedelta
         now = datetime.now(timezone.utc)
+        total_folders = len(case_folders)
         for i, folder in enumerate(case_folders):
-            folder["assigned_created_at"] = now - timedelta(seconds=i)
+            # Give the highest case number (end of the list) the newest timestamp (now - 0)
+            # Give the lowest case number (start of the list) the oldest timestamp
+            folder["assigned_created_at"] = now - timedelta(seconds=(total_folders - 1 - i))
 
         # Calculate optimal worker threads count
         num_workers = min(4, os.cpu_count() or 2)

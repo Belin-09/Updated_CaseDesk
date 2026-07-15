@@ -152,9 +152,7 @@ function renderCases(cases) {
   const searchTerm = searchInput.value.trim();
   const isSearchActive = !!searchTerm;
   caseGrid.innerHTML = cases.map(c => {
-    const statusBadge = c.error_flag
-      ? `<span class="badge badge-flagged">Flagged</span>`
-      : "";
+    const statusBadge = "";
 
     const hitsBadge = (isSearchActive && c.hit_count !== undefined)
       ? `<span class="badge badge-hits">${c.hit_count} hit${c.hit_count !== 1 ? 's' : ''}</span>`
@@ -204,12 +202,12 @@ function renderCases(cases) {
           </div>
         </div>
         <div class="case-card-field">
-          <span class="case-card-field-label">Analyst</span>
-          <span class="case-card-field-value">${escapeHtml(c.analyst || '—')}</span>
-        </div>
-        <div class="case-card-field">
           <span class="case-card-field-label">IO</span>
           <span class="case-card-field-value">${escapeHtml(c.investigating_officer || '—')}</span>
+        </div>
+        <div class="case-card-field">
+          <span class="case-card-field-label">Analyst</span>
+          <span class="case-card-field-value">${escapeHtml(c.analyst || '—')}</span>
         </div>
         <div class="case-card-field">
           <span class="case-card-field-label">Pertains to</span>
@@ -431,6 +429,38 @@ browseFolderBtn.addEventListener("click", async (e) => {
     browseFolderBtn.textContent = originalText;
   }
 });
+
+const syncCasesBtn = document.getElementById("syncCasesBtn");
+if (syncCasesBtn) {
+  syncCasesBtn.addEventListener("click", async () => {
+    syncCasesBtn.disabled = true;
+    const textSpan = syncCasesBtn.querySelector("span");
+    const originalText = textSpan.innerText;
+    textSpan.innerText = "Syncing...";
+    
+    try {
+      const response = await apiFetch("/upload/scan-folder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ root_path: "\\\\192.168.30.6\\Forensic Lab\\Case_data" })
+      });
+      
+      const data = await response.json();
+      if (response.ok) {
+        showStatusMsg(syncCasesBtn, "Sync started in background!", "success");
+      } else {
+        showStatusMsg(syncCasesBtn, data.detail || "Failed to start sync", "error");
+      }
+    } catch (error) {
+      showStatusMsg(syncCasesBtn, "Error connecting to server", "error");
+    } finally {
+      setTimeout(() => {
+        syncCasesBtn.disabled = false;
+        textSpan.innerText = originalText;
+      }, 3000);
+    }
+  });
+}
 
 cancelScanBtn.addEventListener("click", () => {
   scanModal.classList.remove("show");
@@ -889,6 +919,42 @@ if (runPioCrossRefBtn) {
     } finally {
       runPioCrossRefBtn.disabled = false;
       runPioCrossRefBtn.textContent = "Run Cross-Reference Check";
+    }
+  });
+}
+
+const exportSuspectedBtn = document.getElementById("exportSuspectedBtn");
+if (exportSuspectedBtn) {
+  exportSuspectedBtn.addEventListener("click", async () => {
+    exportSuspectedBtn.disabled = true;
+    exportSuspectedBtn.textContent = "Exporting...";
+    
+    try {
+      const response = await apiFetch("/pio/export-suspected", {
+        method: "GET"
+      });
+      
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error(errData.detail || "Export failed");
+      }
+      
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "suspected_pios.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+      showStatusMsg(pioStatus, "Export successful!", "success");
+    } catch (err) {
+      showStatusMsg(pioStatus, err.message, "error");
+    } finally {
+      exportSuspectedBtn.disabled = false;
+      exportSuspectedBtn.textContent = "Export to CSV";
     }
   });
 }

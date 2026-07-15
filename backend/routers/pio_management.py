@@ -2,6 +2,9 @@ import os
 import re
 import tempfile
 import openpyxl
+import csv
+from io import StringIO
+from fastapi.responses import StreamingResponse
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from database import get_db
@@ -12,13 +15,22 @@ from extractor.detect import extract_text, detect_file_type
 router = APIRouter(prefix="/pio", tags=["PIO Intelligence"])
 
 def extract_numbers_from_text(text: str) -> list[str]:
-    # Remove spaces and dashes to easily match continuous digits
-    clean_text = text.replace(" ", "").replace("-", "")
-    # Look for numbers between 10 and 15 digits, optionally starting with +
-    pattern = re.compile(r'\+?\d{10,15}')
+    # Remove common formatting characters
+    clean_text = text.replace(" ", "").replace("-", "").replace("(", "").replace(")", "").replace("'", "").replace('"', "")
+    # Look for numbers between 10 and 18 digits, optionally starting with +
+    pattern = re.compile(r'\+?\d{10,18}')
     matches = pattern.findall(clean_text)
-    # Strip leading '+' from all matches so we store pure digits
-    return list(set([m.lstrip('+') for m in matches]))
+    
+    final_numbers = set()
+    for m in matches:
+        digits = m.lstrip('+')
+        # Skip likely IMEI numbers (exactly 15 digits)
+        if len(digits) == 15:
+            continue
+        if len(digits) >= 10:
+            final_numbers.add(digits[-10:])
+            
+    return list(final_numbers)
 
 @router.post("/upload-master-list")
 async def upload_master_list(
@@ -44,8 +56,8 @@ async def upload_master_list(
             for sheet in wb.sheetnames:
                 ws = wb[sheet]
                 for row in ws.iter_rows(values_only=True):
-                    row_text = " ".join([str(cell) for cell in row if cell is not None])
-                    all_text += row_text + " "
+                    row_text = " | ".join([str(cell) for cell in row if cell is not None])
+                    all_text += row_text + "\n"
         else:
             file_type = detect_file_type(temp_path)
             all_text, _ = extract_text(temp_path, file_type)
@@ -129,3 +141,40 @@ def run_cross_reference(
         "message": "Cross-reference check completed.",
         "cases_flagged": flagged_count
     }
+
+@router.get("/export-suspected")
+def export_suspected_pios(
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user)
+):
+    cases = db.query(Case).filter(Case.suspected_pio_numbers.isnot(None), Case.suspected_pio_numbers != "").all()
+    
+    suspected_set = set()
+    for case in cases:
+        nums = [n.strip() for n in case.suspected_pio_numbers.split(",")]
+        for n in nums:
+            if n:
+                suspected_set.add(n)
+                
+    stream = StringIO()
+    writer = csv.writer(stream)
+    writer.writerow(["Phone Number"])
+    for n in sorted(suspected_set):
+        # Force Excel to treat this as text so it doesn't convert to scientific notation
+        writer.writerow([f'="{n}"'])
+        
+    stream.seek(0)
+    
+    log = AuditLog(
+        username=current_user.username,
+        action="EXPORT_SUSPECTED_PIO_LIST",
+        details=f"Exported {len(suspected_set)} unique suspected PIO numbers."
+    )
+    db.add(log)
+    db.commit()
+    
+    return StreamingResponse(
+        iter([stream.getvalue()]), 
+        media_type="text/csv", 
+        headers={"Content-Disposition": "attachment; filename=suspected_pios.csv"}
+    )
