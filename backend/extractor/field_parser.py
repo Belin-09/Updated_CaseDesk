@@ -245,7 +245,7 @@ def extract_investigating_officer(files_dict: dict) -> Optional[str]:
                     rank = None
                     name = None
                     rank_idx = -1
-                    ranks_regex = r"\b(Lt\s+Col|Col|Major|Maj|Capt|Lt|Brig|Maj\s+Gen|Gen|Lt-Col|Lt\.?\s*Col\.?)\b"
+                    ranks_regex = r"\b(Lt\s+Col|Col|Maj|Major|Capt|Lt|Brig|Maj\s+Gen|Gen|Lt-Col|Lt\.?\s*Col\.?)\b"
                     for j in range(i, max(-1, i - 6), -1):
                         m_rank = re.search(ranks_regex, lines[j], re.IGNORECASE)
                         if m_rank:
